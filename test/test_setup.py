@@ -1,12 +1,12 @@
 import sys
 import pytest
 from imppkg.hello import doit
-from imppkg.simplifiedSA import oneTimeSetup
+from imppkg.simplifiedSA import test_func
 
 
 def test_always_pass():
     doit()
-    oneTimeSetup()
+    test_func()
     assert True
 
 

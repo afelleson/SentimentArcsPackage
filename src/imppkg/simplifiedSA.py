@@ -1,8 +1,9 @@
 import numpy as np
-import pandas as pd
+import modin.pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# these might not need an explicit import? i think they're built into base python?
 import string
 import re
 import datetime
@@ -24,21 +25,37 @@ from nltk.tokenize import sent_tokenize
 
 # for peak detection
 from scipy.signal import find_peaks
-import warnings
-warnings.filterwarnings('ignore')
+import warnings # don't know what this is for
+warnings.filterwarnings('ignore') # don't know what this is for
 
 
-# seems like Dev's code can do this part
-def verify_novel(anovel_raw_str, anovel_title_str, index_ends=500):
-#   INPUT: string in some stage of processing
-#   OUTPUT: display summary index_ends chars of header/footer for verification
+class InputException(Exception):
+    pass
 
-  print(f'Novel Title: {anovel_title_str}')
-  print(f'  Char Len: {len(anovel_raw_str)}')
-  print('====================================\n')
-  print(f'Beginning:\n\n {anovel_raw_str[:index_ends]}\n\n')
-  print('\n------------------------------------')
-  print(f'Ending:\n\n {anovel_raw_str[-index_ends:]}\n\n')
+
+# Setup matplotlib
+plt.rcParams["figure.figsize"] = (20,10) 
+
+# Global Vars
+novel_filename_str = ''
+novel_title_str = ''
+novel_raw_str = ''
+novel_clean_str = ''
+novel_lines_ls = []
+novel_sentences_ls = []
+novel_paragraphs_ls = []
+TEXT_ENCODING = 'utf-8'
+
+# Main (Modin — uses multiple cores for operations on pandas dfs) DataFrame for Novel Sentiments
+sentiment_df = pd.DataFrame
+
+print("test if global defs ran")
+a = 1
+
+## COMMON FUNCTIONS ##
+
+def test_func():
+    print("should say 1: " + a)
 
 
 def save_text2txt_and_download(text_obj, file_suffix='_save.txt'):
@@ -46,6 +63,7 @@ def save_text2txt_and_download(text_obj, file_suffix='_save.txt'):
   INPUT: text object and suffix to add to output text filename
   OUTPUT: Write text object to text file (both temp VM and download)
   '''
+  # "text object" = string or list of strings
 
   if type(text_obj) == str:
     print('STEP 1. Processing String Object\n')
@@ -56,7 +74,7 @@ def save_text2txt_and_download(text_obj, file_suffix='_save.txt'):
         print('STEP 1. Processing List of Strings Object\n')
         str_obj = "\n".join(text_obj)
       else:
-        print('ERROR: Object is not an List of Strings [save_text2txt_and_download()]')
+        print('ERROR: Object is not a List of Strings [save_text2txt_and_download()]')
         return -1
     else:
       print('ERROR: Object is an empty List [save_text2txt_and_download()]')
@@ -113,131 +131,115 @@ def expand_contractions(input_str):
 
   return output_str
 
-def uploadText():
-    # Upload Plain Text File
-    uploaded = files.upload()
 
-    # NOTE: Allows for multiple file uploads, will only process the last
-    #       Left in for future feature addition (processing multiple files at once)
-    for fn in uploaded.keys():
-        print('User uploaded file "{name}" with length {length} bytes'.format(name=fn, length=len(uploaded[fn])))
-        novel_filename_str = fn
+## IPYNB SECTIONS AS FUNCTIONS ##
+
+def uploadText(uploaded : string, novel_title_str : string):
+    '''
+    Parameter(s):
+    uploaded: dictionary with filename as key and 
+    novel_title_str: [Title] by [Author] (string)
+    '''
+
+    # Possible addition: Ability to process multiple input files
 
     filename_ext_str = novel_filename_str.split('.')[-1]
     if filename_ext_str == 'txt':
         # Extract from Dict and decode binary into char string
         novel_raw_str = uploaded[novel_filename_str].decode(TEXT_ENCODING)
     else:
-        print(f'\n\nERROR: Invalid filetype {filename_ext_str}')
-        print('===============================================')
-        print('\n\nRERUN and UPLOAD only plain textfiles with extension *.txt')
+        raise InputException("Must provide path to a plain text file (*.txt)")
 
-    #@title Enter Novel_Title in the form [Title] by [Author]
-
-    Novel_Title = "The Great Gatsby by F Scott Fitzsgerald" #@param {type:"string"}
-
-    novel_title_str = Novel_Title
-
-    # CHECK: That you've trimmed the header/footer before uploading
-
-    print(f'Novel Filename:\n\n  {novel_filename_str}\n\n')
-
-    verify_novel(novel_raw_str, novel_title_str)
+    # Return string showing beginning and end of text for user verification
+    return( f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
+            f'Novel Title: {novel_title_str}\n' +
+            f'  Char Len: {len(novel_raw_str)}\n' +
+            '====================================\n\n' +
+            f'Beginning:\n\n {novel_raw_str[:500]}\n\n\n' +
+            '\n------------------------------------\n' +
+            f'Ending:\n\n {novel_raw_str[-500:]}\n\n\n')
 
 
-def gutenbergImport():
+def gutenbergImport(Novel_Title : string, Gutenberg_URL : string, 
+                    sentence_first_str = None, sentence_last_str = None):
     #@title Enter the URL of your novel at ***gutenberg.net.au***
     #@markdown Paste the URL to the ***HTML version*** (not plain text).
 
-    Novel_Title = 'Frankenstein by Mary Shelley'  #@param {type: "string"}
+    # Novel_Title = 'Frankenstein by Mary Shelley'  #@param {type: "string"}
 
-    Gutenberg_URL = 'https://gutenberg.net.au/ebooks/z00006.html'  #@param {type: "string"}
+    # Gutenberg_URL = 'https://gutenberg.net.au/ebooks/z00006.html'  #@param {type: "string"}
+    # the first sentence in the body of your novel: sentence_first_str
+    # the last sentence in the body of your novel: sentence_last_str
+
 
     # Get raw HTML of novel from Gutenberg.net.au
-
     response=requests.get(Gutenberg_URL)  # TODO: Pass the URL to the .get() method of the requests object
     html = response.text
 
-    # Use HTML <p> to extract text into list of paragraphs
+    # Use HTML <p> tags to extract text into list of paragraphs
     soup = BeautifulSoup(html, "html.parser")
+    parag_ls = [para.text for para in soup.find_all("p")]
 
-    paragraph=soup.find_all("p")  # TODO: get all the <P>Paragraphs</P> 
-                                    #       see bs4 API ref: https://beautiful-soup-4.readthedocs.io/en/latest/#kinds-of-objects
-    parag_ls = []
-    for para in paragraph:
-        parag_ls.append(para.text)
-
-    print(f'There were {len(parag_ls)} Paragraphs:\n') # TODO how do you get the number of paragraphs in the list parag_ls?
-
-    print(f"First 3 Paragraphs: ==============================    \n")
-    print(f"    {list(print(x) for x in parag_ls[:3])}\n")  # TODO: Give index to retrieve the first 3 paragraphs
-
-    print(f"Last 3 Paragraphs: ============================== \n")
-    print(f"    {list(print(x) for x in parag_ls[-3:])}\n")  # TODO: Give index to retrieve the last 3 paragraphs
+    if (len(parag_ls) < 3): # TODO how do you get the number of paragraphs in the list parag_ls?
+        InputException("Fewer than three paragraphs detected")
 
     # Concatenate all paragraphs into a single novel string
-
-    # For every paragraph, replace all hardcoded \r\n with a single space
+    # For every paragraph, replace each hardcoded \r\n with a single space
     parag_flat_ls = [re.sub(r'\r\n', ' ', aparag) for aparag in parag_ls]
-
-    # Concatenate all paragraphs into a single string, separated by two \n
+    # Concatenate all paragraphs into single strings separated by two \n
     novel_raw_str = '\n\n'.join(parag_flat_ls)
+    
+    if (sentence_first_str is not None & sentence_last_str is not None):
+        # Remove header
+        novel_raw_str = ' '.join(novel_raw_str.partition(sentence_first_str)[1:])
+        # Remove footer
+        novel_raw_str = ' '.join(novel_raw_str.partition(sentence_last_str)[:2])
 
-    print('\nSTART OF NOVEL: -----')
-    print(novel_raw_str[:1000] + '\n')
+    # Return string for user verification
+    return('\nSTART OF NOVEL: -----\n'+
+          novel_raw_str[:1000] + '\n\n'+
+          '\nEND OF NOVEL: -----\n\n'+
+          novel_raw_str[-1000:])
 
-    print('\nEND OF NOVEL: -----\n')
-    print(novel_raw_str[-1000:])
-
-    #@title Enter the first sentence in the body of your novel
-    sentence_first_str = 'St. Petersburgh, Dec. 11th'  #@param {type: "string"}
-
-    #@title Enter the last sentence in the body of your novel
-    sentence_last_str = 'waves and lost in darkness and distance.'  #@param {type: "string"}
-
-    # Strip off the header
-    novel_raw_str = ' '.join(novel_raw_str.partition(sentence_first_str)[1:])
-
-    # Strip off the footer
-    novel_raw_str = ' '.join(novel_raw_str.partition(sentence_last_str)[:2])
-
-    # Verify
-
-    print('\nSTART OF CLEAN NOVEL: -----')
-    print(novel_raw_str[:1000] + '\n')
-
-    print('\nEND OF CLEAN NOVEL: -----\n')
-    print(novel_raw_str[-1000:])
 
 def segmentText():
-    novel_sentences_ls = sent_tokenize(novel_raw_str)
+    novel_sentences_ls = sent_tokenize(novel_raw_str) # using nltk.tokenize
 
+
+    # Return sentences for user verification
     sent_ct = len(novel_sentences_ls)
-    sent_show = 10
+    sent_show = 5
 
-    print('\nFirst Sentences: -----\n')
+    # return this for Dev to show!!
+    returnString = '\nFirst Sentences: -----\n\n'
     for i, asent in enumerate(novel_sentences_ls[:sent_show]):
-        print(f'Sentences #{i}: {asent}')
-
+        returnString += f'Sentences #{i}: {asent}\n'
 
     print('\nLast Sentences: -----\n')
     for i, asent in enumerate(novel_sentences_ls[-sent_show:]):
-        print(f'Sentences #{sent_ct - (sent_show - i)}: {asent}')
+        returnString += f'Sentences #{sent_ct - (sent_show - i)}: {asent}\n'
 
-    print(f'\n\nThere are {sent_ct} Sentences in the novel')
+    returnString += f'\n\nThere are {sent_ct} Sentences in the novel\n'
 
     # Delete the empty Sentences and those without any alphabetic characters
     novel_sentences_ls = [x.strip() for x in novel_sentences_ls if len(x.strip()) > 0]
     novel_sentences_ls = [x.strip() for x in novel_sentences_ls if re.search('[a-zA-Z]', x)]
-    len(novel_sentences_ls)
+    
+    num_sentences_removed = sent_ct - len(novel_sentences_ls)
+    if (num_sentences_removed!=0):
+        returnString += f'\n\n{num_sentences_removed} empty and/or non-alphabetic sentences removed\n'
+    # Q: How does sentence number & returning sentences around crux points still match up after doing this? Or do we not care exactly where the crux is in the original text?
 
-    # View the shortest Setences
-    sorted(novel_sentences_ls, key=len)[:100]
-    # type(min(novel_sentences_ls, key=len))
-    # novel_sentences_ls[:1000]
+    # # View the shortest Setences
+    # sorted(novel_sentences_ls, key=len)[:100]
+    # # type(min(novel_sentences_ls, key=len))
+    # # novel_sentences_ls[:1000]
 
     # Plot distribution of sentence lengths
-    _ = plt.hist([len(x) for x in novel_sentences_ls], bins=100)
+    # _ = plt.hist([len(x) for x in novel_sentences_ls], bins=100)
+
+    return returnString
+
 
 def clean_str(dirty_str):
   '''
@@ -766,23 +768,4 @@ def crux_extraction(sentencesAroundCrux):
     files.download(filename_cruxes)
 
 
-def one_time_setup():
-    print("Setup~")
-
-    # Setup matplotlib
-    plt.rcParams["figure.figsize"] = (20,10) 
-
-    # Global Vars
-    novel_filename_str = ''
-    novel_title_str = ''
-    novel_raw_str = ''
-    novel_clean_str = ''
-    novel_lines_ls = []
-    novel_sentences_ls = []
-    novel_paragraphs_ls = []
-
-    # Main (Modin) DataFrame for Novel Sentiments
-    sentiment_df = pd.DataFrame
-
-    TEXT_ENCODING = 'utf-8'
 
