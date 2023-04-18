@@ -1,42 +1,42 @@
+# Standard library imports
+# import string
+# import re
+# import datetime
+# import os
+import configparser
+
 import numpy as np
 import modin.pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns
 
-# these might not need an explicit import? i think they're built into base python?
-import string
-import re
-import datetime
-import os
+# from cleantext import clean
+# import contractions
 
-from cleantext import clean
-import contractions
+# from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+# # for gutenberg import
+# from bs4 import BeautifulSoup
+# import requests
 
-# for gutenberg import
-from bs4 import BeautifulSoup
-import requests
+# # for text cleaning
+# import nltk
+# nltk.download('punkt')
+# from nltk.tokenize import sent_tokenize
 
-# for text cleaning
-import nltk
-nltk.download('punkt')
-from nltk.tokenize import sent_tokenize
+# # for peak detection
+# from scipy.signal import find_peaks
+# import warnings # don't know what this is for
+# warnings.filterwarnings('ignore') # don't know what this is for
 
-# for peak detection
-from scipy.signal import find_peaks
-import warnings # don't know what this is for
-warnings.filterwarnings('ignore') # don't know what this is for
-
-
-class InputException(Exception):
-    pass
-
+# Read the toml file that contains settings that advanced users can edit (via ???)
+config = configparser.ConfigParser()
+config.read('SA_settings.toml')
 
 # Setup matplotlib
 plt.rcParams["figure.figsize"] = (20,10) 
 
-# Global Vars
+# Global Vars — if these are only used once in the final code, move each to the function where it's used
 novel_filename_str = ''
 novel_title_str = ''
 novel_raw_str = ''
@@ -44,18 +44,21 @@ novel_clean_str = ''
 novel_lines_ls = []
 novel_sentences_ls = []
 novel_paragraphs_ls = []
-TEXT_ENCODING = 'utf-8'
+TEXT_ENCODING = config.get('imports', 'text_encoding')
+PARA_SEP = config.get('imports', 'paragraph_separation')
 
 # Main (Modin — uses multiple cores for operations on pandas dfs) DataFrame for Novel Sentiments
 sentiment_df = pd.DataFrame
 
-print("test if global defs ran")
-a = 1
+
+# Custom Exceptions
+class InputFormatException(Exception):
+    pass
 
 ## COMMON FUNCTIONS ##
 
 def test_func():
-    print("should say 1: " + a)
+    print("test_func() ran")
 
 
 def save_text2txt_and_download(text_obj, file_suffix='_save.txt'):
@@ -134,13 +137,13 @@ def expand_contractions(input_str):
 
 ## IPYNB SECTIONS AS FUNCTIONS ##
 
-def uploadText(uploaded : string, novel_title_str : string):
+def uploadText(uploaded : str, novel_title_str : str):
     '''
     Parameter(s):
-    uploaded: dictionary with filename as key and 
+    uploaded: dictionary with filename as key and properly formatted text body as value (should have just one key-value pair)
     novel_title_str: [Title] by [Author] (string)
     '''
-
+    # TODO: change type of 'uploaded' to be whatever Dev wants
     # Possible addition: Ability to process multiple input files
 
     filename_ext_str = novel_filename_str.split('.')[-1]
@@ -148,7 +151,7 @@ def uploadText(uploaded : string, novel_title_str : string):
         # Extract from Dict and decode binary into char string
         novel_raw_str = uploaded[novel_filename_str].decode(TEXT_ENCODING)
     else:
-        raise InputException("Must provide path to a plain text file (*.txt)")
+        raise InputFormatException("Must provide path to a plain text file (*.txt)")
 
     # Return string showing beginning and end of text for user verification
     return( f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
@@ -160,7 +163,7 @@ def uploadText(uploaded : string, novel_title_str : string):
             f'Ending:\n\n {novel_raw_str[-500:]}\n\n\n')
 
 
-def gutenbergImport(Novel_Title : string, Gutenberg_URL : string, 
+def gutenbergImport(Novel_Title : str, Gutenberg_URL : str, 
                     sentence_first_str = None, sentence_last_str = None):
     #@title Enter the URL of your novel at ***gutenberg.net.au***
     #@markdown Paste the URL to the ***HTML version*** (not plain text).

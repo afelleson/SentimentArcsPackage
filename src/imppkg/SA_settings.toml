@@ -1,0 +1,5 @@
+[imports]
+paragraph_separation = "\n\n"
+text_encoding = 'utf-8'
+
+[cleaning]
