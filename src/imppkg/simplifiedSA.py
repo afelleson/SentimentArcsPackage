@@ -211,44 +211,41 @@ def gutenbergImport(Novel_Title : str, Gutenberg_URL : str,
 
 
 def segmentText(novel_raw_str :  str):
+    # Segment by sentence
     novel_sentences_ls = sent_tokenize(novel_raw_str) # using nltk.tokenize
 
-    # Return sentences for user verification
-    sent_ct = len(novel_sentences_ls)
-    sent_show = 5
+    # Most of the rest of this function (not the delete empty sentences part) is just returning things for user verification
+    sentence_count = len(novel_sentences_ls)
+    num_senteces_to_show = 5
 
-    # return this for Dev to show!!
-    returnString = '\nFirst Sentences: -----\n\n'
-    for i, asent in enumerate(novel_sentences_ls[:sent_show]):
-        returnString += f'Sentences #{i}: {asent}\n'
+    verificationString = '\nFirst Sentences: -----\n\n'
+    for i, asent in enumerate(novel_sentences_ls[:num_senteces_to_show]):
+        verificationString += f'Sentences #{i}: {asent}\n'
 
     print('\nLast Sentences: -----\n')
-    for i, asent in enumerate(novel_sentences_ls[-sent_show:]):
-        returnString += f'Sentences #{sent_ct - (sent_show - i)}: {asent}\n'
+    for i, asent in enumerate(novel_sentences_ls[-num_senteces_to_show:]):
+        verificationString += f'Sentences #{sentence_count - (num_senteces_to_show - i)}: {asent}\n'
 
-    returnString += f'\n\nThere are {sent_ct} Sentences in the novel\n'
+    verificationString += f'\n\nThere are {sentence_count} Sentences in the novel\n'
 
     # Delete the empty Sentences and those without any alphabetic characters
     novel_sentences_ls = [x.strip() for x in novel_sentences_ls if len(x.strip()) > 0]
     novel_sentences_ls = [x.strip() for x in novel_sentences_ls if re.search('[a-zA-Z]', x)]
     
-    num_sentences_removed = sent_ct - len(novel_sentences_ls)
+    num_sentences_removed = sentence_count - len(novel_sentences_ls)
     if (num_sentences_removed!=0):
-        returnString += f'\n\n{num_sentences_removed} empty and/or non-alphabetic sentences removed\n'
+        verificationString += f'\n\n{num_sentences_removed} empty and/or non-alphabetic sentences removed\n'
     # Q: How does sentence number & returning sentences around crux points still match up after doing this? Or do we not care exactly where the crux is in the original text?
-
-    # # View the shortest Setences
-    # sorted(novel_sentences_ls, key=len)[:100]
-    # # type(min(novel_sentences_ls, key=len))
-    # # novel_sentences_ls[:1000]
 
     # Plot distribution of sentence lengths
     # _ = plt.hist([len(x) for x in novel_sentences_ls], bins=100)
 
-    return returnString
+    print(verificationString) # same deal as before: have a separate verification function that returns this? return this in a list along with the actual return value? just print it?
+    return novel_sentences_ls
 
 
 def clean_str(dirty_str):
+  # TODO: all of this
   '''
   INPUT: a raw string
   OUTPUT: a clean string
@@ -287,7 +284,7 @@ def clean_str(dirty_str):
   return clean_str 
 
 
-def cleanText():
+def cleanText(): # TODO: change name of function
     # Create sentiment_df to hold text sentences and corresponding sentiment values
 
     sentiment_df = pd.DataFrame({'text_raw': novel_sentences_ls})
@@ -329,6 +326,7 @@ def cleanText():
     # Save segmented and cleaned text to file
     novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title_str.split()])
     save_df2csv_and_download(sentiment_df, novel_camel_str, '_cleaned.csv', nodate=True)
+
 
 def vader():
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
