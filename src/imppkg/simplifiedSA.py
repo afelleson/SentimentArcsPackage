@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 # from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 # # for gutenberg import
-# from bs4 import BeautifulSoup
 # import requests
 
 # # for text cleaning
@@ -180,8 +179,7 @@ def gutenbergImport(Novel_Title : str, Gutenberg_URL : str,
     html = response.text
 
     # Use HTML <p> tags to extract text into list of paragraphs
-    soup = BeautifulSoup(html, "html.parser")
-    parag_ls = [para.text for para in soup.find_all("p")]
+    paragraphs = re.findall(r'<p>(.*?)</p>', html, flags=re.DOTALL)
 
     if (len(parag_ls) < 3): # TODO how do you get the number of paragraphs in the list parag_ls?
         InputException("Fewer than three paragraphs detected")
