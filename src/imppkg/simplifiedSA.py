@@ -1,6 +1,6 @@
 # Standard library imports
 # import string
-# import re
+import re
 # import datetime
 # import os
 import configparser
@@ -16,12 +16,12 @@ import matplotlib.pyplot as plt
 # from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 # # for gutenberg import
-# import requests
+import requests
 
-# # for text cleaning
-# import nltk
-# nltk.download('punkt')
-# from nltk.tokenize import sent_tokenize
+# for text cleaning
+import nltk # TODO: verify okay to keep this dependency. Dependencies: 12 (only 1 restricted by version); Dependent packages: 1.78K.
+nltk.download('punkt')
+from nltk.tokenize import sent_tokenize
 
 # # for peak detection
 # from scipy.signal import find_peaks
@@ -36,13 +36,13 @@ config.read('SA_settings.toml')
 plt.rcParams["figure.figsize"] = (20,10) 
 
 # Global Vars — if these are only used once in the final code, move each to the function where it's used
-novel_filename_str = ''
-novel_title_str = ''
-novel_raw_str = ''
-novel_clean_str = ''
-novel_lines_ls = []
-novel_sentences_ls = []
-novel_paragraphs_ls = []
+# novel_filename_str = ''
+# novel_title_str = ''
+# novel_raw_str = ''
+# novel_clean_str = ''
+# novel_lines_ls = []
+# novel_sentences_ls = []
+# novel_paragraphs_ls = []
 TEXT_ENCODING = config.get('imports', 'text_encoding')
 PARA_SEP = config.get('imports', 'paragraph_separation')
 
@@ -145,6 +145,7 @@ def uploadText(uploaded : str, novel_title_str : str):
     # TODO: change type of 'uploaded' to be whatever Dev wants
     # Possible addition: Ability to process multiple input files
 
+    novel_filename_str = list(uploaded.keys())[0]
     filename_ext_str = novel_filename_str.split('.')[-1]
     if filename_ext_str == 'txt':
         # Extract from Dict and decode binary into char string
@@ -181,31 +182,36 @@ def gutenbergImport(Novel_Title : str, Gutenberg_URL : str,
     # Use HTML <p> tags to extract text into list of paragraphs
     paragraphs = re.findall(r'<p>(.*?)</p>', html, flags=re.DOTALL)
 
-    if (len(parag_ls) < 3): # TODO how do you get the number of paragraphs in the list parag_ls?
-        InputException("Fewer than three paragraphs detected")
+    if (len(paragraphs) < 3):
+        InputFormatException("Fewer than three paragraphs detected")
 
+    # TODO: figure out what this is doing and why (seems like it's just undoing what we did, plus the \r\n replacement)
     # Concatenate all paragraphs into a single novel string
     # For every paragraph, replace each hardcoded \r\n with a single space
-    parag_flat_ls = [re.sub(r'\r\n', ' ', aparag) for aparag in parag_ls]
+    paragraphs_flat = [re.sub(r'\r\n', ' ', paragraph) for paragraph in paragraphs]
     # Concatenate all paragraphs into single strings separated by two \n
-    novel_raw_str = '\n\n'.join(parag_flat_ls)
+    novel_raw_str = '\n\n'.join(paragraphs_flat)
     
-    if (sentence_first_str is not None & sentence_last_str is not None):
+    if (sentence_first_str is not None & sentence_last_str is not None): # using optional function args
         # Remove header
         novel_raw_str = ' '.join(novel_raw_str.partition(sentence_first_str)[1:])
         # Remove footer
         novel_raw_str = ' '.join(novel_raw_str.partition(sentence_last_str)[:2])
 
-    # Return string for user verification
-    return('\nSTART OF NOVEL: -----\n'+
+    # Print string for user verification
+    # TODO: talk to Dev about the best way to return this. 
+    #   novel_raw_str could alter an argument instead of being a return value?
+    #   or i can write a separate function verifyImport(novel_raw_str) that returns the stuff printed below
+    print('\nSTART OF NOVEL: -----\n'+
           novel_raw_str[:1000] + '\n\n'+
           '\nEND OF NOVEL: -----\n\n'+
           novel_raw_str[-1000:])
+    
+    return(novel_raw_str)
 
 
-def segmentText():
+def segmentText(novel_raw_str :  str):
     novel_sentences_ls = sent_tokenize(novel_raw_str) # using nltk.tokenize
-
 
     # Return sentences for user verification
     sent_ct = len(novel_sentences_ls)
