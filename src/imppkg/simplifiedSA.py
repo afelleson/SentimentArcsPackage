@@ -136,7 +136,7 @@ def expand_contractions(input_str):
 
 ## IPYNB SECTIONS AS FUNCTIONS ##
 
-def uploadText(uploaded : str, novel_title_str : str):
+def uploadText(uploaded : str, novel_title : str):
     '''
     Parameter(s):
     uploaded: dictionary with filename as key and properly formatted text body as value (should have just one key-value pair)
@@ -153,9 +153,21 @@ def uploadText(uploaded : str, novel_title_str : str):
     else:
         raise InputFormatException("Must provide path to a plain text file (*.txt)")
 
+    print( f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
+            f'Novel Title: {novel_title}\n' +
+            f'  Char Len: {len(novel_raw_str)}\n' +
+            '====================================\n\n' +
+            f'Beginning:\n\n {novel_raw_str[:500]}\n\n\n' +
+            '\n------------------------------------\n' +
+            f'Ending:\n\n {novel_raw_str[-500:]}\n\n\n')
+
+    return novel_raw_str # return as single-item dict with novel_title as key instead? or a custom "SAtext" object with data members title, body, segmented_body, clean_body?
+
+def peepUpload(novel_raw_str): # would make more sense as a method imo
     # Return string showing beginning and end of text for user verification
-    return( f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
-            f'Novel Title: {novel_title_str}\n' +
+    return( 
+        #     f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
+        #     f'Novel Title: {novel_title}\n' +
             f'  Char Len: {len(novel_raw_str)}\n' +
             '====================================\n\n' +
             f'Beginning:\n\n {novel_raw_str[:500]}\n\n\n' +
@@ -218,11 +230,11 @@ def segmentText(novel_raw_str :  str):
     sentence_count = len(novel_sentences_ls)
     num_senteces_to_show = 5
 
-    verificationString = '\nFirst Sentences: -----\n\n'
+    verificationString = f'\nFirst {num_senteces_to_show} Sentences: -----\n\n'
     for i, asent in enumerate(novel_sentences_ls[:num_senteces_to_show]):
         verificationString += f'Sentences #{i}: {asent}\n'
 
-    print('\nLast Sentences: -----\n')
+    print(f'\nLast {num_senteces_to_show} Sentences: -----\n')
     for i, asent in enumerate(novel_sentences_ls[-num_senteces_to_show:]):
         verificationString += f'Sentences #{sentence_count - (num_senteces_to_show - i)}: {asent}\n'
 
@@ -244,7 +256,7 @@ def segmentText(novel_raw_str :  str):
     return novel_sentences_ls
 
 
-def clean_str(dirty_str):
+def clean_str(dirty_str): # to be called within clean_text
   # TODO: all of this
   '''
   INPUT: a raw string
@@ -284,7 +296,7 @@ def clean_str(dirty_str):
   return clean_str 
 
 
-def cleanText(): # TODO: change name of function
+def clean_text(): # TODO: change name of function
     # Create sentiment_df to hold text sentences and corresponding sentiment values
 
     sentiment_df = pd.DataFrame({'text_raw': novel_sentences_ls})
@@ -293,7 +305,7 @@ def cleanText(): # TODO: change name of function
 
     # clean the 'text_raw' column and create the 'text_clean' column
     # novel_df['text_clean'] = hero.clean(novel_df['text_raw'])
-    sentiment_df['text_clean'] = sentiment_df['text_raw'].apply(lambda x: clean_str(x))
+    sentiment_df['text_clean'] = sentiment_df['text_raw'].apply(lambda x: clean_str(x)) # call clean_str()
     sentiment_df['text_clean'] = sentiment_df['text_clean'].astype('string')
     sentiment_df['text_clean'] = sentiment_df['text_clean'].str.strip()
     sentiment_df['text_raw_len'] = sentiment_df['text_raw'].apply(lambda x: len(x))
