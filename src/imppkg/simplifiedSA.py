@@ -163,16 +163,17 @@ def uploadText(uploaded : str, novel_title : str):
 
     return novel_raw_str # return as single-item dict with novel_title as key instead? or a custom "SAtext" object with data members title, body, segmented_body, clean_body?
 
-def peepUpload(novel_raw_str): # would make more sense as a method imo
+def peepUpload(novel_raw_str): # would make more sense as a method imo. could take in an SAtext object and be a method, or take in a dict to be able to print the file name
     # Return string showing beginning and end of text for user verification
-    return( 
-        #     f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
+    # f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
         #     f'Novel Title: {novel_title}\n' +
-            f'  Char Len: {len(novel_raw_str)}\n' +
+    stringToPeep =     (f'  Char Len: {len(novel_raw_str)}\n' +
             '====================================\n\n' +
             f'Beginning:\n\n {novel_raw_str[:500]}\n\n\n' +
             '\n------------------------------------\n' +
             f'Ending:\n\n {novel_raw_str[-500:]}\n\n\n')
+    print(stringToPeep)
+    return(stringToPeep)
 
 
 def gutenbergImport(Novel_Title : str, Gutenberg_URL : str, 
