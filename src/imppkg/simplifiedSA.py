@@ -10,8 +10,8 @@ import modin.pandas as pd
 import matplotlib.pyplot as plt
 # import seaborn as sns
 
-# from cleantext import clean
-# import contractions
+from cleantext import clean
+import contractions
 
 # from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
@@ -43,7 +43,7 @@ plt.rcParams["figure.figsize"] = (20,10)
 # novel_lines_ls = []
 # novel_sentences_ls = []
 # novel_paragraphs_ls = []
-TEXT_ENCODING = config.get('imports', 'text_encoding')
+TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: use the chardet library to detect the file's character encoding instead
 PARA_SEP = config.get('imports', 'paragraph_separation')
 
 # Main (Modin — uses multiple cores for operations on pandas dfs) DataFrame for Novel Sentiments
@@ -253,12 +253,11 @@ def segmentText(novel_raw_str :  str):
     # Plot distribution of sentence lengths
     # _ = plt.hist([len(x) for x in novel_sentences_ls], bins=100)
 
-    print(verificationString) # same deal as before: have a separate verification function that returns this? return this in a list along with the actual return value? just print it?
+    print(verificationString) # TODO: same deal as before: have a separate verification function that returns this? return this in a list along with the actual return value? just print it?
     return novel_sentences_ls
 
 
-def clean_str(dirty_str): # to be called within clean_text
-  # TODO: all of this
+def clean_str(dirty_str :  str): # to be called within clean_text
   '''
   INPUT: a raw string
   OUTPUT: a clean string
@@ -266,7 +265,7 @@ def clean_str(dirty_str): # to be called within clean_text
 
   contraction_expanded_str = contractions.fix(dirty_str)
 
-  clean_str = clean(contraction_expanded_str,4,
+  clean_str = clean(contraction_expanded_str,4, # TODO: detemine if we want to keep this dependency (cleantext). Chun says no. Find alternative?
       fix_unicode=True,               # fix various unicode errors
       to_ascii=True,                  # transliterate to closest ASCII representation
       lower=True,                     # lowercase text
@@ -277,8 +276,8 @@ def clean_str(dirty_str): # to be called within clean_text
       no_numbers=False,               # replace all numbers with a special token
       no_digits=False,                # replace all digits with a special token
       no_currency_symbols=False,      # replace all currency symbols with a special token
-      no_punct=False,                 # remove punctuations
-      # replace_with_punct="",          # instead of removing punctuations you may replace them
+      no_punct=False,                 # remove punctuation
+      # replace_with_punct="",          # instead of removing punctuations, you may replace them
       # replace_with_url="<URL>",
       # replace_with_email="<EMAIL>",
       # replace_with_phone_number="<PHONE>",
@@ -289,7 +288,7 @@ def clean_str(dirty_str): # to be called within clean_text
   )
 
   # Replace all new lines/returns with single whitespace
-  clean_str = ' '.join(clean_str.split())
+  clean_str = ' '.join(clean_str.split()) # remove leading, trailing, and repeated spaces
   # clean_str = clean_str.replace('\n\r', ' ')
   # clean_str = clean_str.replace('\n', ' ')
   # clean_str = clean_str.replace('\r', ' ')
@@ -297,9 +296,8 @@ def clean_str(dirty_str): # to be called within clean_text
   return clean_str 
 
 
-def clean_text(): # TODO: change name of function
+def clean_text(novel_sentences_ls : list): # TODO: change name of function
     # Create sentiment_df to hold text sentences and corresponding sentiment values
-
     sentiment_df = pd.DataFrame({'text_raw': novel_sentences_ls})
     sentiment_df['text_raw'] = sentiment_df['text_raw'].astype('string')
     sentiment_df['text_raw'] = sentiment_df['text_raw'].str.strip()
