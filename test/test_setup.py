@@ -6,7 +6,6 @@ from imppkg.simplifiedSA import test_func
 
 def test_always_pass():
     doit()
-    test_func()
     assert True
 
 

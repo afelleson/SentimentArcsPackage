@@ -30,7 +30,7 @@ from nltk.tokenize import sent_tokenize
 
 # Read the toml file that contains settings that advanced users can edit (via ???)
 config = configparser.ConfigParser()
-config.read('SA_settings.toml')
+config.read('src/imppkg/SA_settings.toml')
 
 # Setup matplotlib
 plt.rcParams["figure.figsize"] = (20,10) 
