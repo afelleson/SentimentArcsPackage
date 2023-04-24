@@ -20,7 +20,7 @@ import requests
 
 # for text cleaning
 import nltk # TODO: verify okay to keep this dependency. Dependencies: 12 (only 1 restricted by version); Dependent packages: 1.78K.
-nltk.download('punkt') # this downloads something to the user's home directory, even if they're not running the package there
+nltk.download('punkt') # this downloads something to the user's home directory, even if they're not running the package there. TODO: make it save in the current directory.
 from nltk.tokenize import sent_tokenize
 
 # # for peak detection
@@ -187,7 +187,7 @@ def peepUpload(novel_raw_str): # would make more sense as a method imo. could ta
             f'Beginning of novel:\n\n {novel_raw_str[:500]}\n\n\n' +
             '\n------------------------------------\n' +
             f'End of novel:\n\n {novel_raw_str[-500:]}\n\n\n')
-    print(stringToPeep)
+    print(stringToPeep) # TODO: remove all print statements (at very end of package development)
     return(stringToPeep)
 
 
@@ -238,7 +238,7 @@ def gutenbergImport(Novel_Title : str, Gutenberg_URL : str,
     return(novel_raw_str)
 
 
-def segmentText(novel_raw_str :  str):
+def segmentText(novel_raw_str :  str): # TODO: don't print/have a verification string if there aren't parameters to adjust here
     # Segment by sentence
     novel_sentences_ls = sent_tokenize(novel_raw_str) # using nltk.tokenize
 
@@ -280,7 +280,7 @@ def clean_str(dirty_str :  str): # to be called within create_df_with_text (form
 
   contraction_expanded_str = contractions.fix(dirty_str)
 
-  clean_str = clean(contraction_expanded_str,4, # TODO: detemine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
+  clean_str = clean(contraction_expanded_str, # TODO: detemine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
       fix_unicode=True,               # fix various unicode errors
       to_ascii=True,                  # transliterate to closest ASCII representation
       lower=True,                     # lowercase text
