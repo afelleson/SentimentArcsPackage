@@ -6,7 +6,7 @@ import datetime
 import configparser
 
 import numpy as np
-import modin.pandas as pd
+import modin.pandas as pd # might be using an old version of pandas, forcing a reinstall of pandas :(
 import matplotlib.pyplot as plt
 # import seaborn as sns
 
@@ -20,7 +20,7 @@ import requests
 
 # for text cleaning
 import nltk # TODO: verify okay to keep this dependency. Dependencies: 12 (only 1 restricted by version); Dependent packages: 1.78K.
-nltk.download('punkt')
+nltk.download('punkt') # this downloads something to the user's home directory, even if they're not running the package there
 from nltk.tokenize import sent_tokenize
 
 # # for peak detection
@@ -147,7 +147,7 @@ def expand_contractions(input_str):
 
 ## IPYNB SECTIONS AS FUNCTIONS ##
 
-def uploadText(uploaded : str, novel_title : str):
+def uploadText(filepath : str):
     '''
     Parameter(s):
     uploaded: dictionary with filename as key and properly formatted text body as value (should have just one key-value pair)
@@ -156,21 +156,25 @@ def uploadText(uploaded : str, novel_title : str):
     # TODO: change type of 'uploaded' to be whatever Dev wants
     # Possible addition: Ability to process multiple input files
 
-    novel_filename_str = list(uploaded.keys())[0]
-    filename_ext_str = novel_filename_str.split('.')[-1]
-    if filename_ext_str == 'txt':
-        # Extract from Dict and decode binary into char string
-        novel_raw_str = uploaded[novel_filename_str].decode(TEXT_ENCODING)
-    else:
-        raise InputFormatException("Must provide path to a plain text file (*.txt)")
+    # novel_filename_str = list(uploaded.keys())[0]
+    # filename_ext_str = novel_filename_str.split('.')[-1]
+    # if filename_ext_str == 'txt':
+    #     # Extract from Dict and decode binary into char string
+    #     novel_raw_str = uploaded[novel_filename_str].decode(TEXT_ENCODING)
+    # else:
+    #     raise InputFormatException("Must provide path to a plain text file (*.txt)")
 
-    print( f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
-            f'Novel Title: {novel_title}\n' +
-            f'  Char Len: {len(novel_raw_str)}\n' +
-            '====================================\n\n' +
-            f'Beginning:\n\n {novel_raw_str[:500]}\n\n\n' +
-            '\n------------------------------------\n' +
-            f'Ending:\n\n {novel_raw_str[-500:]}\n\n\n')
+    # print( f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
+    #         f'Novel Title: {novel_title}\n' +
+    #         f'  Char Len: {len(novel_raw_str)}\n' +
+    #         '====================================\n\n' +
+    #         f'Beginning:\n\n {novel_raw_str[:500]}\n\n\n' +
+    #         '\n------------------------------------\n' +
+    #         f'Ending:\n\n {novel_raw_str[-500:]}\n\n\n')
+    
+    # redo on sun night:
+    with open(filepath,'r') as f:
+        novel_raw_str = f.read()    
 
     return novel_raw_str # return as single-item dict with novel_title as key instead? or a custom "SAtext" object with data members title, body, segmented_body, clean_body?
 
