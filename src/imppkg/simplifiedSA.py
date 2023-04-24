@@ -43,8 +43,11 @@ plt.rcParams["figure.figsize"] = (20,10)
 # novel_lines_ls = []
 # novel_sentences_ls = []
 # novel_paragraphs_ls = []
-TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: use the chardet library to detect the file's character encoding instead
-PARA_SEP = config.get('imports', 'paragraph_separation')
+
+# TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: use the chardet library to detect the file's character encoding instead
+# PARA_SEP = config.get('imports', 'paragraph_separation')
+TEXT_ENCODING = 'utf-8'
+PARA_SEP = "\n\n"
 
 # Main (Modin — uses multiple cores for operations on pandas dfs) DataFrame for Novel Sentiments
 # sentiment_df = pd.DataFrame
