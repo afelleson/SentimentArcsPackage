@@ -49,6 +49,7 @@ PARA_SEP = config.get('imports', 'paragraph_separation')
 # Main (Modin — uses multiple cores for operations on pandas dfs) DataFrame for Novel Sentiments
 # sentiment_df = pd.DataFrame
 
+# TODO: remove the word "novel" from this entire notebook (except the gutenburg import) if this is meant to apply to all types of texts
 
 # Custom Exceptions
 class InputFormatException(Exception):
@@ -106,7 +107,7 @@ def save_df_to_file(df, novel_title : str, label : str):
 
 
 
-def save_df2csv_and_download(df_obj, novel_name_str, file_suffix='_save.csv', nodate=True):
+def save_df2csv_and_download(df_obj, novel_name_str, file_suffix='_save.csv', nodate=True): # TODO: add param: path_to_save_at
   '''
   INPUT: DataFrame object and suffix to add to output csv filename
   OUTPUT: Write DataFrame object to csv file (both temp VM and download)
@@ -358,9 +359,12 @@ def vader(sentiment_df, novel_title : str):
     win_size = int(win_per * vader_df.shape[0])
     _ = vader_df['sentiment'].rolling(win_size, center=True).mean().plot(grid=True)
 
-    # Save Model Sentiment Time Series to file
-    novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    save_df_to_file(vader_df, novel_camel_str, "vader")
+    # # Save Model Sentiment Time Series to file
+    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
+    # save_df_to_file(vader_df, novel_camel_str, "vader")
+    # note: just run the save_df_to_file() function with the returned value if you want to do this
+    
+    return vader_df
 
 
 def textblob(sentiment_df, novel_title : str):
@@ -378,10 +382,12 @@ def textblob(sentiment_df, novel_title : str):
     window_size = int(window_pct * textblob_df.shape[0])
     _ = textblob_df['sentiment'].rolling(window_size, center=True).mean().plot(grid=True)
 
-    # Save Model Sentiment Time Series to file
-    novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    save_df_to_file(textblob_df, novel_camel_str, "textblob")
+    # # Save Model Sentiment Time Series to file
+    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
+    # save_df_to_file(textblob_df, novel_camel_str, "textblob")
+    #  # note: just run the save_df_to_file() function with the returned value if you want to do this
     
+    return textblob_df
 
 
 # Create class for data preparation for transformer models
@@ -434,29 +440,33 @@ def distilbert(sentiment_df, novel_title : str):
     distilbert_df = pd.DataFrame(list(zip(line_no_ls, line_ls,sentiment_ls,labels_ls,scores_ls)), columns=['line_no','line','sentiment','label','score'])
     distilbert_df.head()
 
+    # TODO: decide where to put this
     # Ensure balance of sentiments
     # distilbert_df['distilbert'].unique()
     _ = distilbert_df['label'].hist()
 
+    # Q: is this different from the visualize function below?
+    # TODO: decide if this is needed anywhere
     # Plot
     win_per = 0.1
     win_size = int(win_per * distilbert_df.shape[0])
     _ = distilbert_df['sentiment'].rolling(win_size, center=True).mean().plot(grid=True)
 
-    # Save results to file
-    novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    save_df_to_file(distilbert_df, novel_camel_str, "distilbert")
+    # # Save results to file
+    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
+    # save_df_to_file(distilbert_df, novel_camel_str, "distilbert")
+    
+    return distilbert_df
 
 
-def combineModels(sentiment_df, novel_title, **kwargs):
+def combine_model_results(sentiment_df, novel_title, **kwargs):
     '''
-    Optional named args: vader=vader_df, textblob=textblob_df, 
-                         distilbert=distilbert_df, nlptown=nlptown_df, 
-                         roberta15lg=roberta15lg_df
+    Optional named args: vader = vader_df, textblob = textblob_df, 
+                         distilbert = distilbert_df, nlptown = nlptown_df, 
+                         roberta15lg = roberta15lg_df
     '''
-    # Merge all dataframes
+    # Merge all dataframes into a new dataframe
     sentiment_all_df = sentiment_df[['line_no','text_raw','text_clean']].copy(deep=True)
-
     for key, value in kwargs.items():
         try:
             sentiment_all_df[key] = value['sentiment']
@@ -464,102 +474,109 @@ def combineModels(sentiment_df, novel_title, **kwargs):
         except:
             print(f'Failed in appending {key} sentiments\n')
 
+    # # Save Sentiment Timeseries to Datafile
+    # save_df_to_file(sentiment_all_df, novel_title, "merged")
+    
+    return sentiment_all_df
+
+
+def visualize(sentiment_all_df, window_pct = 10):
+    '''
+    window_pct
+    '''
+    if window_pct>20 | window_pct<1:
+        print("Warning: window percent outside expected range")
+    window_size = int(window_pct/100 * sentiment_all_df.shape[0])
+
+
+    # Plot Raw Timeseries
+    # TODO: initialize model_samelen_ls(?)
+    ax = sentiment_all_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(grid=True, lw=3, colormap='Dark2')
+    ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Raw Sentiment Timeseries')
+    plt.show()
+
+
+    # Plot Standard Scalar Normalized
+    # Compute the mean of each raw Sentiment Timeseries and adjust to [-1.0, 1.0] Range
+    model_samelen_adj_mean_dt = {}
+
+    for amodel in model_samelen_ls:
+        amodel_min = sentiment_all_df[amodel].min()
+        amodel_max = sentiment_all_df[amodel].max()
+        amodel_range = amodel_max - amodel_min
+        amodel_raw_mean = sentiment_all_df[amodel].mean()
+    
+    if amodel_range > 2.0:
+        model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
+    elif amodel_range < 1.1:
+        model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
+    else:
+        model_samelen_adj_mean_dt[amodel] = amodel_raw_mean
+    
+    print(f'Model: {amodel}\n  Raw Mean: {amodel_raw_mean}\n  Adj Mean: {model_samelen_adj_mean_dt[amodel]}\n  Min: {amodel_min}\n  Max: {amodel_max}\n  Range: {amodel_range}\n')
+
+    # Normalize Timeseries with StandardScaler (u=0, sd=+/- 1)
+
+    # sentiment_all_norm_df = pd.DataFrame()
+    sentiment_all_norm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
+    sentiment_all_norm_df[model_samelen_ls] = StandardScaler().fit_transform(sentiment_all_df[model_samelen_ls])
+    sentiment_all_norm_df.head()
+
+    # Plot Normalized Timeseries to same mean
+
+    ax = sentiment_all_norm_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(grid=True, colormap='Dark2', lw=3)
+    ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Normalization: Standard Scaler')
+
+    plt.show()
+
+    # Save results to file
+    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
+    # save_df_to_file(sentiment_all_norm_df, novel_camel_str, "allstdscaler")
+
+    return sentiment_all_norm_df
+
+
+def something(): #TODO: rename
+     # Plot StandardScaler + Original Mean
+    # Plot Normalized Timeseries to adjusted original mean
+    sentiment_all_adjnorm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
+    for amodel in model_samelen_ls:
+        sentiment_all_adjnorm_df[amodel] = sentiment_all_norm_df[amodel] + model_samelen_adj_mean_dt[amodel]
+
+    ax = sentiment_all_norm_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(grid=True, alpha=0.3, colormap='Dark2')
+    ax.hlines(y=0.0, xmin=0, xmax=sentiment_all_norm_df.shape[0], linewidth=3, linestyles='--', color='r', alpha=0.5)
+    _ = sentiment_all_adjnorm_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(ax=ax, grid=True, colormap='Dark2', lw=3)
+    ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Normalization: Standard Scaler + True Mean Adjustment')
+    plt.show();
+
+    sentiment_all_adjnorm_df.head()
+
+    # Save results to file
+    novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
+    save_df_to_file(sentiment_all_adjnorm_df, novel_camel_str, "alladjstdscaler")
+
+
+def SMA(): # TODO: rename
+    #@title Create SMA using Standard Scaler Normalization:
+    Add_Original_Mean = False #@param {type:"boolean"}  (user input)
+
+    # Create Simple Moving Average DataFrame _sma_df from Window Percentage
+    col_nonmodels_ls = ['line_no','text_raw','text_clean']
+    col_models_ls = list(set(sentiment_all_df.columns.to_list()) - set(col_nonmodels_ls))
+    sentiment_all_sma_df = sentiment_all_df[col_nonmodels_ls].copy(deep=True)
+
+    Add_Original_Mean = True
+
+    if Add_Original_Mean:
+        for amodel in col_models_ls:
+            sentiment_all_sma_df[amodel] = sentiment_all_adjnorm_df[amodel].rolling(window_size, center=True).mean()
+    else:
+        for amodel in col_models_ls:
+            sentiment_all_sma_df[amodel] = sentiment_all_norm_df[amodel].rolling(window_size, center=True).mean()
+
     # Verify
-    sentiment_all_df.head()
-    sentiment_all_df.info()
+    _ = sentiment_all_sma_df[col_models_ls].plot(grid=True)
 
-    # Save Sentiment Timeseries to Datafile
-    save_df_to_file(sentiment_all_df, novel_title, "merged")
-
-
-# def visualize():
-#     ##@title Enter the Sliding Window width as Percent of Novel length (default 10%, larger=smoother)
-#     Window_Percent = 10 #@param {type:"slider", min:1, max:20, step:1}
-#     win_per = Window_Percent
-#     win_size = int(win_per/100 * sentiment_all_df.shape[0])
-
-
-#     # Plot Raw Timeseries
-#     ax = sentiment_all_df[model_samelen_ls].rolling(win_size, center=True).mean().plot(grid=True, lw=3, colormap='Dark2')
-#     ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Raw Sentiment Timeseries')
-#     plt.show()
-
-
-#     # Plot Standard Scalar Normalized
-#     # Compute the mean of each raw Sentiment Timeseries and adjust to [-1.0, 1.0] Range
-#     model_samelen_adj_mean_dt = {}
-
-#     for amodel in model_samelen_ls:
-#         amodel_min = sentiment_all_df[amodel].min()
-#         amodel_max = sentiment_all_df[amodel].max()
-#         amodel_range = amodel_max - amodel_min
-#         amodel_raw_mean = sentiment_all_df[amodel].mean()
-    
-#     if amodel_range > 2.0:
-#         model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
-#     elif amodel_range < 1.1:
-#         model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
-#     else:
-#         model_samelen_adj_mean_dt[amodel] = amodel_raw_mean
-    
-#     print(f'Model: {amodel}\n  Raw Mean: {amodel_raw_mean}\n  Adj Mean: {model_samelen_adj_mean_dt[amodel]}\n  Min: {amodel_min}\n  Max: {amodel_max}\n  Range: {amodel_range}\n')
-
-#     # Normalize Timeseries with StandardScaler (u=0, sd=+/- 1)
-
-#     # sentiment_all_norm_df = pd.DataFrame()
-#     sentiment_all_norm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
-#     sentiment_all_norm_df[model_samelen_ls] = StandardScaler().fit_transform(sentiment_all_df[model_samelen_ls])
-#     sentiment_all_norm_df.head()
-
-#     # Plot Normalized Timeseries to same mean
-
-#     ax = sentiment_all_norm_df[model_samelen_ls].rolling(win_size, center=True).mean().plot(grid=True, colormap='Dark2', lw=3)
-#     ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Normalization: Standard Scaler')
-
-#     plt.show()
-
-#     # Save results to file
-#     novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-#     save_df_to_file(sentiment_all_norm_df, novel_camel_str, "allstdscaler")
-
-
-#      # Plot StandardScaler + Original Mean
-#     # Plot Normalized Timeseries to adjusted original mean
-#     sentiment_all_adjnorm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
-#     for amodel in model_samelen_ls:
-#         sentiment_all_adjnorm_df[amodel] = sentiment_all_norm_df[amodel] + model_samelen_adj_mean_dt[amodel]
-
-#     ax = sentiment_all_norm_df[model_samelen_ls].rolling(win_size, center=True).mean().plot(grid=True, alpha=0.3, colormap='Dark2')
-#     ax.hlines(y=0.0, xmin=0, xmax=sentiment_all_norm_df.shape[0], linewidth=3, linestyles='--', color='r', alpha=0.5)
-#     _ = sentiment_all_adjnorm_df[model_samelen_ls].rolling(win_size, center=True).mean().plot(ax=ax, grid=True, colormap='Dark2', lw=3)
-#     ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Normalization: Standard Scaler + True Mean Adjustment')
-#     plt.show();
-
-#     sentiment_all_adjnorm_df.head()
-
-#     # Save results to file
-#     novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-#     save_df_to_file(sentiment_all_adjnorm_df, novel_camel_str, "alladjstdscaler")
-
-#     #@title Create SMA using Standard Scaler Normalization:
-#     Add_Original_Mean = False #@param {type:"boolean"}  (user input)
-
-#     # Create Simple Moving Average DataFrame _sma_df from Window Percentage
-#     col_nonmodels_ls = ['line_no','text_raw','text_clean']
-#     col_models_ls = list(set(sentiment_all_df.columns.to_list()) - set(col_nonmodels_ls))
-#     sentiment_all_sma_df = sentiment_all_df[col_nonmodels_ls].copy(deep=True)
-
-#     Add_Original_Mean = True
-
-#     if Add_Original_Mean:
-#         for amodel in col_models_ls:
-#             sentiment_all_sma_df[amodel] = sentiment_all_adjnorm_df[amodel].rolling(win_size, center=True).mean()
-#     else:
-#         for amodel in col_models_ls:
-#             sentiment_all_sma_df[amodel] = sentiment_all_norm_df[amodel].rolling(win_size, center=True).mean()
-
-#     # Verify
-#     _ = sentiment_all_sma_df[col_models_ls].plot(grid=True)
 
 # def peakDetection():
 #     # Which cols hold Model Sentiment Timeseries
