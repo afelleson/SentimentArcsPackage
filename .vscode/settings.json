@@ -1,2 +1,7 @@
-{"jupyter.interactiveWindow.codeLens.commands": " "
+{
+    "jupyter.interactiveWindow.codeLens.commands": " ",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.formatting.provider": "none"
 }

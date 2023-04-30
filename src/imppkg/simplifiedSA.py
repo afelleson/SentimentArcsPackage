@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from cleantext import clean # note: remove dependency (clean-text library) if possible
 import contractions # remove dependency?
 
-# from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler # used to normalize timeseries. TODO: figure out if necessary
 
 # # for gutenberg import
 import requests
@@ -30,7 +30,7 @@ from nltk.tokenize import sent_tokenize
 
 # Read the toml file that contains settings that advanced users can edit (via ???)
 config = configparser.ConfigParser()
-config.read('src/imppkg/SA_settings.toml')
+config.read('src/imppkg/SA_settings.toml') # TODO: debug (probably the file path, but maybe the 'get' function calls later)
 
 # Setup matplotlib
 plt.rcParams["figure.figsize"] = (20,10) 
@@ -63,91 +63,52 @@ class InputFormatException(Exception):
 def test_func():
     print("test_func() ran")
 
+# Code to import a csv as a pd.df that can be passed to the model functions: df = pd.read_csv('saved_file.csv')
 
-# def save_text2txt_and_download(text_obj, file_suffix='_save.txt'): # appears to never be used. could be used at the end of segment or clean
-#     '''
-#     INPUT: text object and suffix to add to output text filename
-#     OUTPUT: Write text object to text file (both temp VM and download)
-#     '''
-#     # "text object" = string or list of strings
-    
-#     if type(text_obj) == str:
-#         print('STEP 1. Processing String Object\n')
-#         str_obj = text_obj
-#     elif type(text_obj) == list:
-#         if (len(text_obj) > 0):
-#             if type(text_obj[0]) == str:
-#                 print('STEP 1. Processing List of Strings Object\n')
-#                 str_obj = "\n".join(text_obj)
-#             else:
-#                 print('ERROR: Object is not a List of Strings [save_text2txt_and_download()]')
-#                 return -1
-#         else:
-#             print('ERROR: Object is an empty List [save_text2txt_and_download()]')
-#         return -1
-#     else:
-#         print('ERROR: Object Type is neither String nor List [save_text2txt_and_download()]')
-#         return -1
-
-    # datetime_str = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    # # out_filename = novel_name_str.split('.')[0] + '_' + datetime_str + file_suffix
-    # out_filename = novel_name.split('.')[0] + file_suffix
-
-    # # # Write file to the directory this file is running in
-    # # print(f'STEP 2. Saving textfile to temporary VM file: {out_filename}\n')
-    # # with open(out_filename, "w") as fp:
-    # #     fp.write(str_obj)
-
-    # # Download permanent copy of file
-    # print(f'STEP 3. Downloading permanent copy of textfile: {out_filename}\n')
-    # files.download(out_filename)
-
-
-def save_df_to_file(df, novel_title : str, label : str):
-    novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    suffix = f'_{label}.csv'
-    save_df2csv_and_download(df, novel_camel_str, suffix, nodate=True)
-
-
-
-def save_df2csv_and_download(df_obj, novel_name_str, file_suffix='_save.csv', nodate=True): # TODO: add param: path_to_save_at
-  '''
-  INPUT: DataFrame object and suffix to add to output csv filename
-  OUTPUT: Write DataFrame object to csv file (both temp VM and download)
-  '''
-
-  if isinstance(df_obj, pd.DataFrame):
-    datetime_str = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-    if nodate:
-      out_filename = novel_name_str.split('.')[0] + file_suffix
+def import_df(filepath: str) -> pd.DataFrame: 
+    # This function exists (rather than having the user do it themselves bc we are not using pandas, we're using modin as pd
+    file_extension = filepath.split('.')[-1]
+    if file_extension=="csv":
+        pd.read_csv(filepath)
     else:
-      out_filename = novel_name_str.split('.')[0] + '_' + datetime_str + file_suffix
-    # print(f'STEP 1. Saving DataFrame: {df_obj.__name__} to temporary VM file: {out_filename}\n') # Also, isinstance(obj, pd.DataFrame)
-    print(f'STEP 1. Saving DataFrame to temporary VM file: {out_filename}\n')
-    df_obj.to_csv(out_filename, index=False) 
-  else:
-    print(f'ERROR: Object is not a DataFrame [save_df2csv_and_download()]')
-    return -1
-
-  # Download permanent copy of file
-  print(f'STEP 2. Downloading permanent copy of csvfile: {out_filename}\n')
-  files.download(out_filename)
+        raise InputFormatException("Can only import a dataframe from a .csv")
+    # Could have requirements for filename formatting and get title from filename here, and be passing the text around in this whole program as a dict with title: content (str or df) or turn it into an object with member data title, etc as stated in another comment (go look at that one)
 
 
-def expand_contractions(input_str):
-  '''
-  INPUT: long string
-  OUTPUT: long string with expanded contractions
-  '''
+def download_df(df_obj: pd.DataFrame, title: str, save_filepath="./", filename_suffix='_save', nodate=True):
+    '''
+    INPUT: DataFrame object and suffix to add to output csv filename
+    OUTPUT: Write DataFrame object to csv file (both temp VM and download)
+    '''
+    camel_title = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
+    if isinstance(df_obj, pd.DataFrame):
+        if nodate:
+            out_filename = camel_title.split('.')[0] + filename_suffix + ".csv"
+        else:
+            datetime_str = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+            out_filename = camel_title.split('.')[0] + '_' + datetime_str + filename_suffix + ".csv"
+        # print(f'STEP 1. Saving DataFrame: {df_obj.__name__} to temporary VM file: {out_filename}\n') # Also, isinstance(obj, pd.DataFrame)
+        print(f'STEP 1. Saving DataFrame to temporary VM file: {out_filename}\n')
+        df_obj.to_csv(f"{save_filepath}{out_filename}", index=False) 
+    else:
+        print(f'ERROR: Object is not a DataFrame [download_df2csv_and_download()]')
+        return -1
 
-  output_str = contractions.fix(input_str)
 
-  return output_str
+def expand_contractions(input_str: str) -> str:
+    '''
+    INPUT: long string
+    OUTPUT: long string with expanded contractions
+    '''
+
+    output_str = contractions.fix(input_str)
+
+    return output_str
 
 
 ## IPYNB SECTIONS AS FUNCTIONS ##
 
-def uploadText(filepath : str):
+def upload_text(filepath: str) -> str:
     '''
     Parameter(s):
     uploaded: dictionary with filename as key and properly formatted text body as value (should have just one key-value pair)
@@ -156,43 +117,40 @@ def uploadText(filepath : str):
     # TODO: change type of 'uploaded' to be whatever Dev wants
     # Possible addition: Ability to process multiple input files
 
-    # novel_filename_str = list(uploaded.keys())[0]
-    # filename_ext_str = novel_filename_str.split('.')[-1]
-    # if filename_ext_str == 'txt':
-    #     # Extract from Dict and decode binary into char string
-    #     novel_raw_str = uploaded[novel_filename_str].decode(TEXT_ENCODING)
-    # else:
-    #     raise InputFormatException("Must provide path to a plain text file (*.txt)")
+    filename_ext_str = filepath.split('.')[-1]
+    if filename_ext_str == 'txt':
+        # novel_raw_str = uploaded[novel_filename_str].decode(TEXT_ENCODING)
+        with open(filepath,'r') as f:
+            novel_raw_str = f.read()
+            # TODO: figure out if decoding (using TEXT_ENCODING) would be useful here
+            return novel_raw_str
+    else:
+        raise InputFormatException("Must provide path to a plain text file (*.txt)")
 
-    # print( f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
-    #         f'Novel Title: {novel_title}\n' +
-    #         f'  Char Len: {len(novel_raw_str)}\n' +
-    #         '====================================\n\n' +
-    #         f'Beginning:\n\n {novel_raw_str[:500]}\n\n\n' +
-    #         '\n------------------------------------\n' +
-    #         f'Ending:\n\n {novel_raw_str[-500:]}\n\n\n')
-    
-    # redo on sun night:
-    with open(filepath,'r') as f:
-        novel_raw_str = f.read()    
+     # return as single-item dict with novel_title as key instead? or a custom "SAtext" object with data members title, body, segmented_body, clean_body?
 
-    return novel_raw_str # return as single-item dict with novel_title as key instead? or a custom "SAtext" object with data members title, body, segmented_body, clean_body?
-
-def peepUpload(novel_raw_str): # would make more sense as a method imo. could take in an SAtext object and be a method, or take in a dict to be able to print the file name
-    # Return string showing beginning and end of text for user verification
-    # f'Novel Filename:\n\n  {novel_filename_str}\n\n\n' +
-        #     f'Novel Title: {novel_title}\n' +
-    stringToPeep =     (f'  Char Len: {len(novel_raw_str)}\n' +
-            '====================================\n\n' +
-            f'Beginning of novel:\n\n {novel_raw_str[:500]}\n\n\n' +
-            '\n------------------------------------\n' +
-            f'End of novel:\n\n {novel_raw_str[-500:]}\n\n\n')
+def preview(something) -> str: # would make more sense as a method imo. could take in an SAtext object and be a method, or take in a dict to be able to print the file name
+    # Return string showing beginning and end of text for user verification, or show some clean text lines from a df
+    # input can be a string or a df
+    if type(something) == str:
+        stringToPeep =     (f'  Length of novel (in characters): {len(something)}\n' +
+                '====================================\n\n' +
+                f'Beginning of novel:\n\n {something[:500]}\n\n\n' +
+                '\n------------------------------------\n' +
+                f'End of novel:\n\n {something[-500:]}\n\n\n')
+    elif type(something) == pd.DataFrame:
+        stringToPeep = "First 10 sentences:\n\n"
+        stringToPeep += '\n'.join(something['text_clean'][0:10].astype(str))
+        stringToPeep += "\n\n ... \n\n"
+        stringToPeep += "Last 10 sentences:\n\n"
+        stringToPeep += '\n'.join(something['text_clean'][-11:-1].astype(str))
+        
     print(stringToPeep) # TODO: remove all print statements (at very end of package development)
     return(stringToPeep)
 
 
-def gutenbergImport(Novel_Title : str, Gutenberg_URL : str, 
-                    sentence_first_str = None, sentence_last_str = None):
+def gutenberg_import(Novel_Title: str, Gutenberg_URL: str, 
+                    sentence_first_str = None, sentence_last_str = None) -> list:
     #@title Enter the URL of your novel at ***gutenberg.net.au***
     #@markdown Paste the URL to the ***HTML version*** (not plain text).
 
@@ -225,20 +183,11 @@ def gutenbergImport(Novel_Title : str, Gutenberg_URL : str,
         novel_raw_str = ' '.join(novel_raw_str.partition(sentence_first_str)[1:])
         # Remove footer
         novel_raw_str = ' '.join(novel_raw_str.partition(sentence_last_str)[:2])
-
-    # Print string for user verification
-    # TODO: talk to Dev about the best way to return this. 
-    #   novel_raw_str could alter an argument instead of being a return value?
-    #   or i can write a separate function verifyImport(novel_raw_str) that returns the stuff printed below
-    print('\nSTART OF NOVEL: -----\n'+
-          novel_raw_str[:1000] + '\n\n'+
-          '\nEND OF NOVEL: -----\n\n'+
-          novel_raw_str[-1000:])
     
     return(novel_raw_str)
 
 
-def segmentText(novel_raw_str :  str): # TODO: don't print/have a verification string if there aren't parameters to adjust here
+def segment_sentences(novel_raw_str:  str) -> list: # TODO: don't print/have a verification string if there aren't parameters to adjust here
     # Segment by sentence
     novel_sentences_ls = sent_tokenize(novel_raw_str) # using nltk.tokenize
 
@@ -269,49 +218,51 @@ def segmentText(novel_raw_str :  str): # TODO: don't print/have a verification s
     # _ = plt.hist([len(x) for x in novel_sentences_ls], bins=100)
 
     print(verificationString) # TODO: same deal as before: have a separate verification function that returns this? return this in a list along with the actual return value? just print it?
+    
     return novel_sentences_ls
 
 
-def clean_str(dirty_str :  str): # to be called within create_df_with_text (formerly known as clean_text)
-  '''
-  INPUT: a raw string
-  OUTPUT: a clean string
-  '''
+def clean_string(dirty_str: str) -> str: # to be called within create_df_with_text (formerly known as clean_text)
+    #TODO: add options, and add more functions in here that take care of stuff clean-text doesn't, like emoticons
+    '''
+    INPUT: a raw string
+    OUTPUT: a clean string
+    '''
 
-  contraction_expanded_str = contractions.fix(dirty_str)
+    contraction_expanded_str = contractions.fix(dirty_str)
 
-  clean_str = clean(contraction_expanded_str, # TODO: detemine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
-      fix_unicode=True,               # fix various unicode errors
-      to_ascii=True,                  # transliterate to closest ASCII representation
-      lower=True,                     # lowercase text
-      no_line_breaks=False,           # fully strip line breaks as opposed to only normalizing them
-      no_urls=False,                  # replace all URLs with a special token
-      no_emails=False,                # replace all email addresses with a special token
-      no_phone_numbers=False,         # replace all phone numbers with a special token
-      no_numbers=False,               # replace all numbers with a special token
-      no_digits=False,                # replace all digits with a special token
-      no_currency_symbols=False,      # replace all currency symbols with a special token
-      no_punct=False,                 # remove punctuation
-      # replace_with_punct="",          # instead of removing punctuations, you may replace them
-      # replace_with_url="<URL>",
-      # replace_with_email="<EMAIL>",
-      # replace_with_phone_number="<PHONE>",
-      # replace_with_number="<NUMBER>",
-      # replace_with_digit="0",
-      # replace_with_currency_symbol="<CUR>",
-      lang="en"                       # set to 'de' for German special handling
-  )
+    clean_str = clean(contraction_expanded_str, # TODO: detemine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
+        fix_unicode=True,               # fix various unicode errors
+        to_ascii=True,                  # transliterate to closest ASCII representation
+        lower=True,                     # lowercase text
+        no_line_breaks=False,           # fully strip line breaks as opposed to only normalizing them
+        no_urls=False,                  # replace all URLs with a special token
+        no_emails=False,                # replace all email addresses with a special token
+        no_phone_numbers=False,         # replace all phone numbers with a special token
+        no_numbers=False,               # replace all numbers with a special token
+        no_digits=False,                # replace all digits with a special token
+        no_currency_symbols=False,      # replace all currency symbols with a special token
+        no_punct=False,                 # remove punctuation
+        # replace_with_punct="",          # instead of removing punctuations, you may replace them
+        # replace_with_url="<URL>",
+        # replace_with_email="<EMAIL>",
+        # replace_with_phone_number="<PHONE>",
+        # replace_with_number="<NUMBER>",
+        # replace_with_digit="0",
+        # replace_with_currency_symbol="<CUR>",
+        lang="en"                       # set to 'de' for German special handling
+    )
 
-  # Replace all new lines/returns with single whitespace
-  # clean_str = clean_str.replace('\n\r', ' ') # I think these are commented out bc clean() with no_line_breaks=True already does those
-  # clean_str = clean_str.replace('\n', ' ')
-  # clean_str = clean_str.replace('\r', ' ')
-  clean_str = ' '.join(clean_str.split()) # remove leading, trailing, and repeated spaces
-  
-  return clean_str 
+    # Replace all new lines/returns with single whitespace
+    # clean_str = clean_str.replace('\n\r', ' ') # I think these are commented out bc clean() with no_line_breaks=True already does those
+    # clean_str = clean_str.replace('\n', ' ')
+    # clean_str = clean_str.replace('\r', ' ')
+    clean_str = ' '.join(clean_str.split()) # remove leading, trailing, and repeated spaces
+
+    return clean_str 
 
 
-def create_df_with_text(novel_sentences_ls : list, novel_title : str): # TODO: reevaluate this name change
+def create_clean_df(novel_sentences_ls: list, novel_title: str) -> pd.DataFrame:
     # Create sentiment_df to hold text sentences and corresponding sentiment values
     sentiment_df = pd.DataFrame
     sentiment_df = pd.DataFrame({'text_raw': novel_sentences_ls})
@@ -320,7 +271,7 @@ def create_df_with_text(novel_sentences_ls : list, novel_title : str): # TODO: r
 
     # clean the 'text_raw' column and create the 'text_clean' column
     # novel_df['text_clean'] = hero.clean(novel_df['text_raw'])
-    sentiment_df['text_clean'] = sentiment_df['text_raw'].apply(lambda x: clean_str(x)) # call clean_str()
+    sentiment_df['text_clean'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x)) # call clean_str()
     sentiment_df['text_clean'] = sentiment_df['text_clean'].astype('string')
     sentiment_df['text_clean'] = sentiment_df['text_clean'].str.strip() # strips leading and trailing whitespaces & newlines
     sentiment_df['text_raw_len'] = sentiment_df['text_raw'].apply(lambda x: len(x))
@@ -347,12 +298,12 @@ def create_df_with_text(novel_sentences_ls : list, novel_title : str): # TODO: r
     # View the shortest lines by text_raw_len
     print("shortest lines by text_raw_len: \n" + sentiment_df.sort_values(by=['text_raw_len']).head(20))
 
-    save_df_to_file(sentiment_df, novel_title, "cleaned")
+    download_df(sentiment_df, novel_title, "cleaned")
     
     return sentiment_df
 
 
-def vader(sentiment_df, novel_title : str):
+def vader(sentiment_df: pd.DataFrame, novel_title: str) ->  pd.DataFrame:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     sid_obj = SentimentIntensityAnalyzer()
     sentiment_vader_ls = [sid_obj.polarity_scores(asentence)['compound'] for asentence in sentiment_df['text_clean'].to_list()]
@@ -368,13 +319,13 @@ def vader(sentiment_df, novel_title : str):
 
     # # Save Model Sentiment Time Series to file
     # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    # save_df_to_file(vader_df, novel_camel_str, "vader")
-    # note: just run the save_df_to_file() function with the returned value if you want to do this
+    # download_df(vader_df, novel_camel_str, "vader")
+    # note: just run the download_df() function with the returned value if you want to do this
     
     return vader_df
 
 
-def textblob(sentiment_df, novel_title : str):
+def textblob(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
     from textblob import TextBlob
     sentiment_textblob_ls = [TextBlob(asentence).sentiment.polarity for asentence in sentiment_df['text_clean'].to_list()]
     # sentiment_df['textblob'] = sentiment_df['text_clean'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
@@ -391,8 +342,8 @@ def textblob(sentiment_df, novel_title : str):
 
     # # Save Model Sentiment Time Series to file
     # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    # save_df_to_file(textblob_df, novel_camel_str, "textblob")
-    #  # note: just run the save_df_to_file() function with the returned value if you want to do this
+    # download_df(textblob_df, novel_camel_str, "textblob")
+    #  # note: just run the download_df() function with the returned value if you want to do this
     
     return textblob_df
 
@@ -409,7 +360,7 @@ class SimpleDataset:
         return {k: v[idx] for k, v in self.tokenized_texts.items()}
         
         
-def distilbert(sentiment_df, novel_title : str):
+def distilbert(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
     # Some of these might be needed in other transformer models to be added later (TODO)
     from transformers import pipeline
     from transformers import AutoTokenizer, AutoModelWithLMHead  # T5Base 50k
@@ -461,12 +412,12 @@ def distilbert(sentiment_df, novel_title : str):
 
     # # Save results to file
     # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    # save_df_to_file(distilbert_df, novel_camel_str, "distilbert")
+    # download_df(distilbert_df, novel_camel_str, "distilbert")
     
     return distilbert_df
 
 
-def combine_model_results(sentiment_df, novel_title, **kwargs):
+def combine_model_results(sentiment_df: pd.DataFrame, novel_title, **kwargs) -> pd.DataFrame:
     '''
     Optional named args: vader = vader_df, textblob = textblob_df, 
                          distilbert = distilbert_df, nlptown = nlptown_df, 
@@ -482,107 +433,111 @@ def combine_model_results(sentiment_df, novel_title, **kwargs):
             print(f'Failed in appending {key} sentiments\n')
 
     # # Save Sentiment Timeseries to Datafile
-    # save_df_to_file(sentiment_all_df, novel_title, "merged")
+    # download_df(sentiment_all_df, novel_title, "merged")
     
     return sentiment_all_df
 
 
-def visualize(sentiment_all_df, window_pct = 10):
+def plot_raw_sentiments(sentiment_all_df: pd.DataFrame, title: str, save_filepath="./", 
+                        window_pct = 10,
+                        models = ['vader', 'textblob', 'distilbert']):
     '''
-    window_pct
+    window_pct: 
     '''
     if window_pct>20 | window_pct<1:
         print("Warning: window percent outside expected range")
     window_size = int(window_pct/100 * sentiment_all_df.shape[0])
 
 
-    # Plot Raw Timeseries
-    # TODO: initialize model_samelen_ls(?)
-    ax = sentiment_all_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(grid=True, lw=3, colormap='Dark2')
-    ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Raw Sentiment Timeseries')
-    plt.show()
+    # Plot Raw Timeseries    
+    ax = sentiment_all_df[models].rolling(window_size, center=True).mean().plot(grid=True, lw=3, colormap='Dark2')
+    ax.title.set_text(f'Sentiment Analysis \n {title} \n Raw Sentiment Timeseries')
+    # plt.show()
+    plt.savefig(f"{save_filepath}{title}_raw_sentiments_plot.png")
 
 
-    # Plot Standard Scalar Normalized
+def plot_normalized_sentiments(sentiment_all_df: pd.DataFrame, title: str, save_filepath="./", window_pct = 10,
+                               models = ['vader', 'textblob', 'distilbert']):
+    '''@param models: must contain models with the same timesereies length 
+    (sentimentR cannot be included without adjustments — used to be model_samelen_ls)
+    
+    This function normalizes the sentiments in the given models and saves a png plot of them'''
+    
+    if window_pct>20 | window_pct<1:
+        print("Warning: window percent outside expected range")
+    window_size = int(window_pct/100 * sentiment_all_df.shape[0])
+    
     # Compute the mean of each raw Sentiment Timeseries and adjust to [-1.0, 1.0] Range
     model_samelen_adj_mean_dt = {}
-
-    for amodel in model_samelen_ls:
-        amodel_min = sentiment_all_df[amodel].min()
-        amodel_max = sentiment_all_df[amodel].max()
-        amodel_range = amodel_max - amodel_min
-        amodel_raw_mean = sentiment_all_df[amodel].mean()
-    
+    if len(models)>1:
+        for amodel in models:
+            amodel_min = sentiment_all_df[amodel].min()
+            amodel_max = sentiment_all_df[amodel].max()
+            amodel_range = amodel_max - amodel_min
+            amodel_raw_mean = sentiment_all_df[amodel].mean()
     if amodel_range > 2.0:
         model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
     elif amodel_range < 1.1:
         model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
     else:
         model_samelen_adj_mean_dt[amodel] = amodel_raw_mean
-    
     print(f'Model: {amodel}\n  Raw Mean: {amodel_raw_mean}\n  Adj Mean: {model_samelen_adj_mean_dt[amodel]}\n  Min: {amodel_min}\n  Max: {amodel_max}\n  Range: {amodel_range}\n')
 
     # Normalize Timeseries with StandardScaler (u=0, sd=+/- 1)
-
     # sentiment_all_norm_df = pd.DataFrame()
     sentiment_all_norm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
-    sentiment_all_norm_df[model_samelen_ls] = StandardScaler().fit_transform(sentiment_all_df[model_samelen_ls])
+    sentiment_all_norm_df[models] = StandardScaler().fit_transform(sentiment_all_df[models])
     sentiment_all_norm_df.head()
 
     # Plot Normalized Timeseries to same mean
-
-    ax = sentiment_all_norm_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(grid=True, colormap='Dark2', lw=3)
-    ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Normalization: Standard Scaler')
-
-    plt.show()
-
-    # Save results to file
-    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    # save_df_to_file(sentiment_all_norm_df, novel_camel_str, "allstdscaler")
+    ax = sentiment_all_norm_df[models].rolling(window_size, center=True).mean().plot(grid=True, colormap='Dark2', lw=3)
+    ax.title.set_text(f'Sentiment Analysis \n {title} \n Normalization: Standard Scaler')
+    # plt.show()
+    plt.savefig(f"{save_filepath}{title}_normalized_plot.png")
 
     return sentiment_all_norm_df
 
 
-def something(): #TODO: rename
-     # Plot StandardScaler + Original Mean
-    # Plot Normalized Timeseries to adjusted original mean
-    sentiment_all_adjnorm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
-    for amodel in model_samelen_ls:
-        sentiment_all_adjnorm_df[amodel] = sentiment_all_norm_df[amodel] + model_samelen_adj_mean_dt[amodel]
+# def something(): #TODO: rename
+#      # Plot StandardScaler + Original Mean
+#     # Plot Normalized Timeseries to adjusted original mean
+#     sentiment_all_adjnorm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
+#     for amodel in model_samelen_ls:
+#         sentiment_all_adjnorm_df[amodel] = sentiment_all_norm_df[amodel] + model_samelen_adj_mean_dt[amodel]
 
-    ax = sentiment_all_norm_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(grid=True, alpha=0.3, colormap='Dark2')
-    ax.hlines(y=0.0, xmin=0, xmax=sentiment_all_norm_df.shape[0], linewidth=3, linestyles='--', color='r', alpha=0.5)
-    _ = sentiment_all_adjnorm_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(ax=ax, grid=True, colormap='Dark2', lw=3)
-    ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Normalization: Standard Scaler + True Mean Adjustment')
-    plt.show();
+#     ax = sentiment_all_norm_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(grid=True, alpha=0.3, colormap='Dark2')
+#     ax.hlines(y=0.0, xmin=0, xmax=sentiment_all_norm_df.shape[0], linewidth=3, linestyles='--', color='r', alpha=0.5)
+#     _ = sentiment_all_adjnorm_df[model_samelen_ls].rolling(window_size, center=True).mean().plot(ax=ax, grid=True, colormap='Dark2', lw=3)
+#     ax.title.set_text(f'Sentiment Analysis \n {novel_title} \n Normalization: Standard Scaler + True Mean Adjustment')
+#     plt.show();
 
-    sentiment_all_adjnorm_df.head()
+#     sentiment_all_adjnorm_df.head()
 
-    # Save results to file
-    novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    save_df_to_file(sentiment_all_adjnorm_df, novel_camel_str, "alladjstdscaler")
+#     # Save results to file
+#     novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
+#     download_df(sentiment_all_adjnorm_df, novel_camel_str, "alladjstdscaler")
 
 
-def SMA(): # TODO: rename
-    #@title Create SMA using Standard Scaler Normalization:
-    Add_Original_Mean = False #@param {type:"boolean"}  (user input)
+# def SMA(): # TODO: rename
+#     #@title Create SMA using Standard Scaler Normalization:
+#     Add_Original_Mean = False #@param {type:"boolean"}  (user input)
 
-    # Create Simple Moving Average DataFrame _sma_df from Window Percentage
-    col_nonmodels_ls = ['line_no','text_raw','text_clean']
-    col_models_ls = list(set(sentiment_all_df.columns.to_list()) - set(col_nonmodels_ls))
-    sentiment_all_sma_df = sentiment_all_df[col_nonmodels_ls].copy(deep=True)
+#     # Create Simple Moving Average DataFrame _sma_df from Window Percentage
+#     col_nonmodels_ls = ['line_no','text_raw','text_clean']
+#     col_models_ls = list(set(sentiment_all_df.columns.to_list()) - set(col_nonmodels_ls))
+#     sentiment_all_sma_df = sentiment_all_df[col_nonmodels_ls].copy(deep=True)
 
-    Add_Original_Mean = True
+#     Add_Original_Mean = True
 
-    if Add_Original_Mean:
-        for amodel in col_models_ls:
-            sentiment_all_sma_df[amodel] = sentiment_all_adjnorm_df[amodel].rolling(window_size, center=True).mean()
-    else:
-        for amodel in col_models_ls:
-            sentiment_all_sma_df[amodel] = sentiment_all_norm_df[amodel].rolling(window_size, center=True).mean()
+#     if Add_Original_Mean:
+#         for amodel in col_models_ls:
+#             sentiment_all_sma_df[amodel] = sentiment_all_adjnorm_df[amodel].rolling(window_size, center=True).mean()
+#     else:
+#         for amodel in col_models_ls:
+#             sentiment_all_sma_df[amodel] = sentiment_all_norm_df[amodel].rolling(window_size, center=True).mean()
 
-    # Verify
-    _ = sentiment_all_sma_df[col_models_ls].plot(grid=True)
+#     # Verify
+#     _ = sentiment_all_sma_df[col_models_ls].plot(grid=True)
 
 
 # def peakDetection():
