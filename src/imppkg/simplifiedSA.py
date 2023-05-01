@@ -298,7 +298,8 @@ def create_clean_df(novel_sentences_ls: list, novel_title: str) -> pd.DataFrame:
     # View the shortest lines by text_raw_len
     print("shortest lines by text_raw_len: \n" + sentiment_df.sort_values(by=['text_raw_len']).head(20))
 
-    download_df(sentiment_df, novel_title, "cleaned")
+    # download_df(sentiment_df, novel_title, "cleaned")
+    # note: just run the download_df() function with the returned value if you want to do this
     
     return sentiment_df
 
