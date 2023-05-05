@@ -6,7 +6,8 @@ import datetime
 import configparser
 
 import numpy as np
-import modin.pandas as pd # might be using an old version of pandas, forcing a reinstall of pandas :(
+import modin.pandas as pd # might be using an old version of pandas, forcing a reinstall of pandas :( also removes from functionality from df methods, including sort_values()
+import pandas as pd
 import matplotlib.pyplot as plt
 # import seaborn as sns
 
@@ -66,10 +67,10 @@ def test_func():
 # Code to import a csv as a pd.df that can be passed to the model functions: df = pd.read_csv('saved_file.csv')
 
 def import_df(filepath: str) -> pd.DataFrame: 
-    # This function exists (rather than having the user do it themselves bc we are not using pandas, we're using modin as pd
+    # This function should exist (rather than having the user do it themself) when we're using modin.pandas as pd instead of using pandas
     file_extension = filepath.split('.')[-1]
     if file_extension=="csv":
-        pd.read_csv(filepath)
+        return pd.read_csv(filepath)
     else:
         raise InputFormatException("Can only import a dataframe from a .csv")
     # Could have requirements for filename formatting and get title from filename here, and be passing the text around in this whole program as a dict with title: content (str or df) or turn it into an object with member data title, etc as stated in another comment (go look at that one)
@@ -95,15 +96,15 @@ def download_df(df_obj: pd.DataFrame, title: str, save_filepath="./", filename_s
         return -1
 
 
-def expand_contractions(input_str: str) -> str:
-    '''
-    INPUT: long string
-    OUTPUT: long string with expanded contractions
-    '''
+# def expand_contractions(input_str: str) -> str:
+#     '''
+#     INPUT: long string
+#     OUTPUT: long string with expanded contractions
+#     '''
 
-    output_str = contractions.fix(input_str)
+#     output_str = contractions.fix(input_str)
 
-    return output_str
+#     return output_str
 
 
 ## IPYNB SECTIONS AS FUNCTIONS ##
@@ -133,24 +134,34 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
     # Return string showing beginning and end of text for user verification, or show some clean text lines from a df
     # input can be a string or a df
     if type(something) == str:
+        if len(something)<1000:
+            stringToPeep =     (f'  Length of novel (in characters): {len(something)}\n' +
+                                f'Entire novel: \n' +
+                                something)
         stringToPeep =     (f'  Length of novel (in characters): {len(something)}\n' +
                 '====================================\n\n' +
                 f'Beginning of novel:\n\n {something[:500]}\n\n\n' +
                 '\n------------------------------------\n' +
                 f'End of novel:\n\n {something[-500:]}\n\n\n')
     elif type(something) == pd.DataFrame:
+        if len(something)<20: # TODO: test this comparison value is exactly correct
+            stringToPeep = ("Short dataframe. Here's the whole thing: \n" +
+                            '\n'.join(something['cleaned_text'][0:9].astype(str)))
         stringToPeep = "First 10 sentences:\n\n"
-        stringToPeep += '\n'.join(something['text_clean'][0:10].astype(str))
+        stringToPeep += '\n'.join(something['cleaned_text'][0:9].astype(str))
         stringToPeep += "\n\n ... \n\n"
         stringToPeep += "Last 10 sentences:\n\n"
-        stringToPeep += '\n'.join(something['text_clean'][-11:-1].astype(str))
+        stringToPeep += '\n'.join(something['cleaned_text'][-11:-1].astype(str))
+    else:
+        TypeError("You may only preview a string or dataframe with a cleaned_text column")
+        stringToPeep = ""
         
     print(stringToPeep) # TODO: remove all print statements (at very end of package development)
-    return(stringToPeep)
+    return stringToPeep
 
 
 def gutenberg_import(Novel_Title: str, Gutenberg_URL: str, 
-                    sentence_first_str = None, sentence_last_str = None) -> list:
+                    sentence_first_str = None, sentence_last_str = None) -> str:
     #@title Enter the URL of your novel at ***gutenberg.net.au***
     #@markdown Paste the URL to the ***HTML version*** (not plain text).
 
@@ -178,7 +189,7 @@ def gutenberg_import(Novel_Title: str, Gutenberg_URL: str,
     # Concatenate all paragraphs into single strings separated by two \n
     novel_raw_str = '\n\n'.join(paragraphs_flat)
     
-    if (sentence_first_str is not None & sentence_last_str is not None): # using optional function args
+    if (sentence_first_str is not None  and  sentence_last_str is not None): # using optional function args
         # Remove header
         novel_raw_str = ' '.join(novel_raw_str.partition(sentence_first_str)[1:])
         # Remove footer
@@ -195,11 +206,11 @@ def segment_sentences(novel_raw_str:  str) -> list: # TODO: don't print/have a v
     sentence_count = len(novel_sentences_ls)
     num_senteces_to_show = 5
 
-    verificationString = f'\nFirst {num_senteces_to_show} Sentences: -----\n\n'
+    verificationString = f'\n----- First {num_senteces_to_show} Sentences: -----\n\n'
     for i, asent in enumerate(novel_sentences_ls[:num_senteces_to_show]):
         verificationString += f'Sentences #{i}: {asent}\n'
 
-    print(f'\nLast {num_senteces_to_show} Sentences: -----\n')
+    print(f'\n----- Last {num_senteces_to_show} Sentences: -----\n')
     for i, asent in enumerate(novel_sentences_ls[-num_senteces_to_show:]):
         verificationString += f'Sentences #{sentence_count - (num_senteces_to_show - i)}: {asent}\n'
 
@@ -262,44 +273,48 @@ def clean_string(dirty_str: str) -> str: # to be called within create_df_with_te
     return clean_str 
 
 
-def create_clean_df(novel_sentences_ls: list, novel_title: str) -> pd.DataFrame:
+def create_clean_df(novel_sentences_ls: list, novel_title: str, save_filepath = "") -> pd.DataFrame:
+    '''
+    Consider 'save_filepath' an optional arg; use it if you want this function to automatically save the resulting df as a csv
+    '''
+    
     # Create sentiment_df to hold text sentences and corresponding sentiment values
     sentiment_df = pd.DataFrame
     sentiment_df = pd.DataFrame({'text_raw': novel_sentences_ls})
     sentiment_df['text_raw'] = sentiment_df['text_raw'].astype('string')
     sentiment_df['text_raw'] = sentiment_df['text_raw'].str.strip()
 
-    # clean the 'text_raw' column and create the 'text_clean' column
-    # novel_df['text_clean'] = hero.clean(novel_df['text_raw'])
-    sentiment_df['text_clean'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x)) # call clean_str()
-    sentiment_df['text_clean'] = sentiment_df['text_clean'].astype('string')
-    sentiment_df['text_clean'] = sentiment_df['text_clean'].str.strip() # strips leading and trailing whitespaces & newlines
+    # clean the 'text_raw' column and create the 'cleaned_text' column
+    # novel_df['cleaned_text'] = hero.clean(novel_df['text_raw'])
+    sentiment_df['cleaned_text'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x)) # call clean_str()
+    sentiment_df['cleaned_text'] = sentiment_df['cleaned_text'].astype('string')
+    sentiment_df['cleaned_text'] = sentiment_df['cleaned_text'].str.strip() # strips leading and trailing whitespaces & newlines
     sentiment_df['text_raw_len'] = sentiment_df['text_raw'].apply(lambda x: len(x))
-    sentiment_df['text_clean_len'] = sentiment_df['text_clean'].apply(lambda x: len(x))
+    sentiment_df['cleaned_text_len'] = sentiment_df['cleaned_text'].apply(lambda x: len(x))
 
     print(sentiment_df.head())
     print(sentiment_df.info())
 
     # Drop Sentence if Raw length < 1 (Double check)
-    sentiment_df = sentiment_df[sentiment_df['text_raw_len'] > 0]
+    sentiment_df = sentiment_df.loc[sentiment_df['text_raw_len'] > 0]
     sentiment_df.shape
 
-    # Fill any empty text_clean with a neutral word
+    # Fill any empty cleaned_text with a neutral word
     neutral_word = 'NEUTRALWORD'
-    sentiment_df[sentiment_df['text_clean_len'] == 0]['text_clean'] = neutral_word
-    sentiment_df[sentiment_df['text_clean_len'] == 0]['text_clean_len'] = 11
-    sentiment_df['text_clean_len'].sort_values(ascending=True) # , key=lambda x: len(x), inplace=True)
-    # sentiment_df.text_clean.fillna(value='', inplace=True)
+    sentiment_df[sentiment_df['cleaned_text_len'] == 0]['cleaned_text'] = neutral_word
+    sentiment_df[sentiment_df['cleaned_text_len'] == 0]['cleaned_text_len'] = 11
+    sentiment_df['cleaned_text_len'].sort_values(ascending=True) # , key=lambda x: len(x), inplace=True)
+    # sentiment_df.cleaned_text.fillna(value='', inplace=True)
 
     # Add Line Numbers
     sentence_no_ls = list(range(sentiment_df.shape[0]))
     sentiment_df.insert(0, 'line_no', sentence_no_ls)
 
     # View the shortest lines by text_raw_len
-    print("shortest lines by text_raw_len: \n" + sentiment_df.sort_values(by=['text_raw_len']).head(20))
+    # print("shortest lines by text_raw_len: \n" + sentiment_df.sort_values(by='text_raw_len').head(20)) # only works if you're using pandas instead of modin.pandas
 
-    # download_df(sentiment_df, novel_title, "cleaned")
-    # note: just run the download_df() function with the returned value if you want to do this
+    if save_filepath != "":
+        download_df(sentiment_df, novel_title, save_filepath=save_filepath, filename_suffix='_cleaned')
     
     return sentiment_df
 
@@ -307,10 +322,10 @@ def create_clean_df(novel_sentences_ls: list, novel_title: str) -> pd.DataFrame:
 def vader(sentiment_df: pd.DataFrame, novel_title: str) ->  pd.DataFrame:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     sid_obj = SentimentIntensityAnalyzer()
-    sentiment_vader_ls = [sid_obj.polarity_scores(asentence)['compound'] for asentence in sentiment_df['text_clean'].to_list()]
+    sentiment_vader_ls = [sid_obj.polarity_scores(asentence)['compound'] for asentence in sentiment_df['cleaned_text'].to_list()]
     
     # Create new VADER DataFrame to save results
-    vader_df = sentiment_df[['line_no', 'text_raw', 'text_clean']].copy(deep=True)
+    vader_df = sentiment_df[['line_no', 'text_raw', 'cleaned_text']].copy(deep=True)
     vader_df['sentiment'] = pd.Series(sentiment_vader_ls) 
     vader_df.head()
 
@@ -328,11 +343,11 @@ def vader(sentiment_df: pd.DataFrame, novel_title: str) ->  pd.DataFrame:
 
 def textblob(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
     from textblob import TextBlob
-    sentiment_textblob_ls = [TextBlob(asentence).sentiment.polarity for asentence in sentiment_df['text_clean'].to_list()]
-    # sentiment_df['textblob'] = sentiment_df['text_clean'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
+    sentiment_textblob_ls = [TextBlob(asentence).polarity for asentence in sentiment_df['cleaned_text'].to_list()]
+    # sentiment_df['textblob'] = sentiment_df['cleaned_text'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
     
     # Create new TextBlob DataFrame to save results
-    textblob_df = sentiment_df[['line_no', 'text_raw', 'text_clean']].copy(deep=True)
+    textblob_df = sentiment_df[['line_no', 'text_raw', 'cleaned_text']].copy(deep=True)
     textblob_df['sentiment'] = pd.Series(sentiment_textblob_ls) 
     textblob_df.head()
 
@@ -367,11 +382,10 @@ def distilbert(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
     from transformers import AutoTokenizer, AutoModelWithLMHead  # T5Base 50k
     from transformers import AutoModelForSequenceClassification, Trainer
     # from transformers import AutoModelForSeq2SeqLM, AutoModelWithLMHead
-    # from transformers import BertTokenizer, BertForSequenceClassification
+    from transformers import BertTokenizer, BertForSequenceClassification
     # import sentencepiece
     
     # Load tokenizer and model, create trainer
-
     model_name = "distilbert-base-uncased-finetuned-sst-2-english"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
@@ -380,19 +394,19 @@ def distilbert(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
     # (there was a test here i don't think was necessary to run, so it's just in the test file)
 
     # Compute Sentiment Time Series
-    line_ls = sentiment_df['text_clean'].to_list()
+    line_ls = sentiment_df['cleaned_text'].to_list()
 
     # Tokenize texts and create prediction data set
     tokenized_texts = tokenizer(line_ls,truncation=True,padding=True)
     pred_dataset = SimpleDataset(tokenized_texts)
 
     # Run predictions
-    predictions = trainer.predict(pred_dataset)
+    prediction_results = trainer.predict(pred_dataset)
 
     # Transform predictions to labels
-    sentiment_ls = predictions.predictions.argmax(-1)
+    sentiment_ls = np.argmax(prediction_results.predictions, axis=-1) # used to be prediction_results.predictions.argmax(-1)
     labels_ls = pd.Series(sentiment_ls).map(model.config.id2label)
-    scores_ls = (np.exp(predictions[0])/np.exp(predictions[0]).sum(-1,keepdims=True)).max(1)
+    scores_ls = (np.exp(prediction_results[0])/np.exp(prediction_results[0]).sum(-1,keepdims=True)).max(1)
 
     # Create DataFrame with texts, predictions, labels, and scores
     line_no_ls = list(range(len(sentiment_ls)))
@@ -426,7 +440,7 @@ def combine_model_results(sentiment_df: pd.DataFrame, novel_title, **kwargs) -> 
     TODO: make sure this is working
     '''
     # Merge all dataframes into a new dataframe
-    sentiment_all_df = sentiment_df[['line_no','text_raw','text_clean']].copy(deep=True)
+    sentiment_all_df = sentiment_df[['line_no','text_raw','cleaned_text']].copy(deep=True)
     for key, value in kwargs.items():
         try:
             sentiment_all_df[key] = value['sentiment']
@@ -477,17 +491,17 @@ def plot_normalized_sentiments(sentiment_all_df: pd.DataFrame, title: str, save_
             amodel_max = sentiment_all_df[amodel].max()
             amodel_range = amodel_max - amodel_min
             amodel_raw_mean = sentiment_all_df[amodel].mean()
-    if amodel_range > 2.0:
-        model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
-    elif amodel_range < 1.1:
-        model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
-    else:
-        model_samelen_adj_mean_dt[amodel] = amodel_raw_mean
-    print(f'Model: {amodel}\n  Raw Mean: {amodel_raw_mean}\n  Adj Mean: {model_samelen_adj_mean_dt[amodel]}\n  Min: {amodel_min}\n  Max: {amodel_max}\n  Range: {amodel_range}\n')
+            if amodel_range > 2.0:
+                model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
+            elif amodel_range < 1.1:
+                model_samelen_adj_mean_dt[amodel] = (amodel_raw_mean + amodel_min)/(amodel_max - amodel_min)*2 + -1.0
+            else:
+                model_samelen_adj_mean_dt[amodel] = amodel_raw_mean
+            print(f'Model: {amodel}\n  Raw Mean: {amodel_raw_mean}\n  Adj Mean: {model_samelen_adj_mean_dt[amodel]}\n  Min: {amodel_min}\n  Max: {amodel_max}\n  Range: {amodel_range}\n')
 
     # Normalize Timeseries with StandardScaler (u=0, sd=+/- 1)
     # sentiment_all_norm_df = pd.DataFrame()
-    sentiment_all_norm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
+    sentiment_all_norm_df = sentiment_all_df[['line_no','text_raw','cleaned_text']].copy(deep=True)
     sentiment_all_norm_df[models] = StandardScaler().fit_transform(sentiment_all_df[models])
     sentiment_all_norm_df.head()
 
@@ -501,9 +515,9 @@ def plot_normalized_sentiments(sentiment_all_df: pd.DataFrame, title: str, save_
 
 
 # def something(): #TODO: rename
-#      # Plot StandardScaler + Original Mean
+#     # Plot StandardScaler + Original Mean
 #     # Plot Normalized Timeseries to adjusted original mean
-#     sentiment_all_adjnorm_df = sentiment_all_df[['line_no','text_raw','text_clean']].copy(deep=True)
+#     sentiment_all_adjnorm_df = sentiment_all_df[['line_no','text_raw','cleaned_text']].copy(deep=True)
 #     for amodel in model_samelen_ls:
 #         sentiment_all_adjnorm_df[amodel] = sentiment_all_norm_df[amodel] + model_samelen_adj_mean_dt[amodel]
 
@@ -525,7 +539,7 @@ def plot_normalized_sentiments(sentiment_all_df: pd.DataFrame, title: str, save_
 #     Add_Original_Mean = False #@param {type:"boolean"}  (user input)
 
 #     # Create Simple Moving Average DataFrame _sma_df from Window Percentage
-#     col_nonmodels_ls = ['line_no','text_raw','text_clean']
+#     col_nonmodels_ls = ['line_no','text_raw','cleaned_text']
 #     col_models_ls = list(set(sentiment_all_df.columns.to_list()) - set(col_nonmodels_ls))
 #     sentiment_all_sma_df = sentiment_all_df[col_nonmodels_ls].copy(deep=True)
 
@@ -544,7 +558,7 @@ def plot_normalized_sentiments(sentiment_all_df: pd.DataFrame, title: str, save_
 
 # def peakDetection():
 #     # Which cols hold Model Sentiment Timeseries
-#     col_nonmodels_ls = ['line_no','text_raw','text_clean']
+#     col_nonmodels_ls = ['line_no','text_raw','cleaned_text']
 #     col_models_ls = list(set(sentiment_all_sma_df.columns.to_list()) - set(col_nonmodels_ls))
 #     col_models_ls
 
