@@ -1,13 +1,21 @@
 import sys
 import pytest
 from imppkg.hello import doit
-from imppkg.simplifiedSA import test_func
+from imppkg.simplifiedSA import *
 
 
 def test_always_pass():
     doit()
     assert True
 
+def test_config(capfd):
+    print(TEXT_ENCODING)
+    out, err = capfd.readouterr() # for testing things printed to the console
+    assert out == 'utf-8\n'
+    
+    
+def test_config2(capfd):
+    assert PARA_SEP == "\\n\\n"
 
     # Tests from simplifiedSA ipynb:
     # save_df2csv_and_download(temp_df, '_bert-nlptown.txt')
