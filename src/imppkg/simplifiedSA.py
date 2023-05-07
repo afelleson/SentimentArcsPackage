@@ -625,8 +625,8 @@ def peakDetection(smoothed_sentiments_df: pd.DataFrame,
     return peaks, x[peaks], valleys, x[valleys]
 
 
-def crux_extraction(sentiment_df: pd.DataFrame, peaks: list, valleys: list, n=10):
-    """Print Context around each Sentiment Peak
+def crux_context(sentiment_df: pd.DataFrame, peaks: list, valleys: list, n=10):
+    """Return sentences around each sentiment crux
 
     Args:
         sentiment_df (pd.DataFrame): dataframe with original raw text
