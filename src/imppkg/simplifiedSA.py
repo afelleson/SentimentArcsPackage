@@ -42,6 +42,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler # TODO: figure ou
 # For peak detection
 from scipy.signal import find_peaks
 
+
 # Read the toml file that contains settings that advanced users can edit (via ???)
 config = configparser.ConfigParser()
 def get_filepath_in_current_package_dir(filename: str) -> str:
@@ -446,7 +447,7 @@ def combine_model_results(sentiment_df: pd.DataFrame, novel_title, **kwargs) -> 
 # TODO: Also create functions that allow the user to input a df with only one model's sentiment values and append adjusted & normalized sentiments as new columns on the same df, in case they want to compare different adjustments & smoothing methods for the same model.
 def plot_sentiments(all_sentiments_df: pd.DataFrame, 
                         title: str, 
-                        adjustments="normalizedAdjMean",
+                        adjustments="normalizedAdjMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
                         smoothing="sma",
                         save_filepath=CURRENT_DIR, 
                         window_pct = 10,
@@ -508,8 +509,9 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
                 model_max = all_sentiments_df[model].max()
                 model_range = model_max - model_min
                 model_raw_mean = all_sentiments_df[model].mean()
-                # Resclaing formula: Rescaled Value = (Original Value - Original Minimum) / (Original Maximum - Original Minimum) * (New Maximum - New Minimum) + New Minimum
-                if model_range > 2.0: # TODO: figure out if this would make the new max and min -1 and 1 for all models, and clairfy docstrings accordingly. I think this is just dealing with the mean, but how does it decide how much to shift it?
+                # Rescaling formula: Rescaled Value = (Original Value - Original Minimum) / (Original Maximum - Original Minimum) * (New Maximum - New Minimum) + New Minimum
+                    # TODO: rescale based on each model's potential range instead?
+                if model_range > 2.0:
                     models_adj_mean_dt[model] = 2*(model_raw_mean + model_min)/model_range - 1.0
                 elif model_range < 1.1: #Q: why not <= 1.0?
                     models_adj_mean_dt[model] = 2*(model_raw_mean + model_min)/model_range - 1.0
@@ -556,195 +558,132 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
 
 def peakDetection(smoothed_sentiments_df: pd.DataFrame, 
                   model: str,
+                  title: str,
+                  save_filepath = CURRENT_DIR,
+                  algo = "width",
                   distance_min = 360,
                   prominence_min = 0.05,
                   width_min = 25,
                   ):
     """[summary]
+    
+    Uses find_peaks() from scipy.signal (using the parameter specified
+    by 'algo') to identify peaks and troughs in one model's sentiment
+    plot. Returns 
 
     Args:
         model (str): 'vader', 'textblob', 'distilbert', 'nlptown', 'roberta15lg' TODO: add the extra models everywhere else or remove from here
-        distance_min (int): 360 #@param {type:"slider", min:100, max:1000, step:10}
-        prominence_min (float): 0.05 #@param {type:"slider", min:0.01, max:0.1, step:0.01}
-        width_min (int): 25 #@param {type:"slider", min:25, max:500, step:5}
-        threshold_min (float): 0.007 #@param {type:"slider", min:0.001, max:0.01, step:0.001}
+        title (str): title of text
+        save_filepath (str): path (ending in '/') to the directory
+            the resulting plot png should be stored in.
+            Defaults to the current working directory.
+        algo (str): "distance", "prominence", or "width". Defauls to "width".
+        distance_min (int, only needed if algo="distance"): 
+            Required minimum number of sentences (>= 1) between 
+            neighboring peaks. The smallest peaks are removed  until 
+            the condition is fulfilled for all remaining peaks.
+        prominence_min (float, only needed if algo="prominence"): TODO
+        width_min (int, only needed if algo="width"): TODO
+        
+    Returns:
+        A tuple containing four lists: peak x-values, peak y-values,
+            trough x-values, and trough y-values
     """
-    # list of cols that hold sentiment values vs ones that don't
-    col_nonmodels_ls = ['sentence_num','text_raw','cleaned_text']
-    col_models_ls = list(set(smoothed_sentiments_df.columns.to_list()) - set(col_nonmodels_ls))
-
-    plt.rcParams['figure.figsize'] = [30, 20] #TODO: decide
-
-    model_name = model.lower().strip() # (Just in case the accepted values for the model param get messed up in future edits)
+    
+    model_name = model.lower().strip() # (Just in case the accepted values for the model param 
+                                       # get messed up in future edits)
 
     x = smoothed_sentiments_df[model_name]
+    x_inverted = pd.Series([-x for x in smoothed_sentiments_df[model_name].to_list()])
 
-
-    peaks, _ = find_peaks(x, distance=distance_min)
-    peaks2, _ = find_peaks(x, prominence=prominence_min)
-    peaks3, _ = find_peaks(x, width=width_min)
-
-
-    x_inv = pd.Series([-x for x in smoothed_sentiments_df[model_name].to_list()])
-
-    valleys, _ = find_peaks(x_inv, distance=distance_min)
-    valleys2, _ = find_peaks(x_inv, prominence=prominence_min)
-    valleys3, _ = find_peaks(x_inv, width=width_min)
-
-    _ = plt.subplot(2, 2, 1)
-    _ = plt.grid(True, alpha=0.3)
-    _ = plt.plot(x)
-    _ = plt.title(f'Distance Peak Detection ({len(peaks)+len(valleys)} Cruxes) \n {len(peaks)} Peaks & {len(valleys)} Valleys')
-    _ = plt.plot(peaks, x[peaks], "^g", markersize=7)
-    _ = plt.plot(valleys, x[valleys], "vr", markersize=7)
-    for x_val in peaks:
-        _ = plt.text(x_val, x[x_val], f'-----{x_val}', ha='center', va='bottom', rotation=90, size='large', color='black', weight='semibold')
-    for x_val in valleys:
-        _ = plt.text(x_val, x[x_val], f'-----{x_val}', ha='center', va='top', rotation=270, size='large', color='black', weight='semibold')
-
-    _ = plt.subplot(2, 2, 2)
-    _ = plt.grid(True, alpha=0.3)
-    _ = plt.plot(x)
-    _ = plt.title(f'Prominence Peak Detection ({len(peaks2)+len(valleys2)} Cruxes) \n {len(peaks2)} Peaks & {len(valleys2)} Valleys')
-    _ = plt.plot(peaks2, x[peaks2], "^g", markersize=7)
-    _ = plt.plot(valleys2, x[valleys2], "vr", markersize=7)
-    for x_val in peaks2:
-        _ = plt.text(x_val, x[x_val], f'-----{x_val}', ha='center', va='bottom', rotation=90, size='large', color='black', weight='semibold')
-    for x_val in valleys2:
-        _ = plt.text(x_val, x[x_val], f'-----{x_val}', ha='center', va='top', rotation=270, size='large', color='black', weight='semibold')
-
-    _ = plt.subplot(2, 2, 3)
-    _ = plt.grid(True, alpha=0.3)
-    _ = plt.plot(x)
-    _ = plt.title(f'Width Peak Detection ({len(peaks3)+len(valleys3)} Cruxes) \n {len(peaks3)} Peaks & {len(valleys3)} Valleys')
-    _ = plt.plot(valleys3, x[valleys3], "vr", markersize=7)
-    _ = plt.plot(peaks3, x[peaks3], "^g", markersize=7)
-    for x_val in peaks3:
-        _ = plt.text(x_val, x[x_val], f'-----{x_val}', ha='center', va='bottom', rotation=90, size='large', color='black', weight='semibold')
-    for x_val in valleys3:
-        _ = plt.text(x_val, x[x_val], f'-----{x_val}', ha='center', va='top', rotation=270, size='large', color='black', weight='semibold')
-
-    _ = plt.subplot(2, 2, 4)
-    _ = plt.grid(True, alpha=0.3)
-    _ = plt.plot(x)
-    _ = plt.title(f'Threshold Peak Detection ({len(peaks4)+len(valleys4)} Cruxes) \n {len(peaks4)} Peaks & {len(valleys4)} Valleys')
-    _ = plt.plot(valleys4, x[valleys4], "vr", markersize=7)
-    _ = plt.plot(valleys4, x[valleys4], "^g", markersize=7)
-    for x_val in peaks4:
-        _ = plt.text(x_val, x[x_val], f'-----{x_val}', ha='center', va='bottom', rotation=90, size='large', color='black', weight='semibold')
-    for x_val in valleys4:
-        _ = plt.text(x_val, x[x_val], f'-----{x_val}', ha='center', va='top', rotation=270, size='large', color='black', weight='semibold')
-
-    _ = plt.suptitle(f'{novel_title_str}\n Peak Detection of Sentiment Analysis (SMA {win_per}%)', fontsize=20)
-    _ = plt.grid(True, alpha=0.3)
-
-    _ = plt.show();
-
-    plt.rcParams['figure.figsize'] = [12,8]
-
-
-    #@title Select a Peak Detection Algorithms to View in Detail (usually Distance or Width is best):
-    plt.rcParams['figure.figsize'] = [20, 10]
-    Peak_Algorithm = "Width" #@param ["Distance", "Prominence", "Width", "Threshold"]
-    if Peak_Algorithm == 'Distance':
-        peaks = peaks
-        valleys = valleys
-    elif Peak_Algorithm == 'Prominence':
-        peaks = peaks2
-        valleys = valleys2  
-    elif Peak_Algorithm == 'Width':
-        peaks = peaks3
-        valleys = valleys3
-    else:
-        # Assume Peak_Algorithm == 'Threshold'
-        peaks = peaks4
-        valleys = valleys4
-
-    # model_name = f'{model.lower()}_sma10'
-
-    # x = novel_clean_df[model_name]
-
-    # peaks2, _ = find_peaks(x, prominence=peak_prominence)  
-
-    # x_inv = pd.Series([-x for x in novel_clean_df[model_name].to_list()])
-    # valleys2, _ = find_peaks(x_inv, prominence=peak_prominence)     
+    if algo == 'Distance':
+        peaks, _ = find_peaks(x, distance=distance_min)
+        valleys, _ = find_peaks(x_inverted, distance=distance_min)
+    elif algo == 'Prominence':
+        peaks, _ = find_peaks(x, prominence=prominence_min)
+        valleys, _ = find_peaks(x_inverted, prominence=prominence_min)
+    else: # algo == 'Width'
+        peaks, _ = find_peaks(x, width=width_min)
+        valleys, _ = find_peaks(x_inverted, width=width_min)
 
     _ = plt.plot(x)
-    _ = plt.plot(peaks, x[peaks], "^g", markersize=15, label='peak sentence#')
-    _ = plt.plot(valleys, x[valleys], "vr", markersize=15, label='valley sentence#')
-    for x_val in peaks:
+    _ = plt.plot(peaks, x[peaks], "^g", markersize=15, label='peak sentence#') # green triangles
+    _ = plt.plot(valleys, x[valleys], "vr", markersize=15, label='valley sentence#') #red triangles
+    for x_val in peaks: # x_val = index of a peak in x
         _ = plt.text(x_val, x[x_val], f'    {x_val}', horizontalalignment='left', size='medium', color='black', weight='semibold')
     for x_val in valleys:
         _ = plt.text(x_val, x[x_val], f'    {x_val}', horizontalalignment='left', size='medium', color='black', weight='semibold')
-    _ = plt.title(f'{Novel_Title}\n {Peak_Algorithm} Peak Detection \n Sentiment Analysis (SMA {win_per}%)', fontsize=16)
+    _ = plt.title(f'{title} \n {algo}-based peak detection ({len(peaks)+len(valleys)} cruxes) \n {len(peaks)} Peaks & {len(valleys)} Valleys', fontsize=16)
     _ = plt.ylabel('Sentiment')
     _ = plt.xlabel('Sentence No.')
     _ = plt.legend(loc='best')
     _ = plt.grid(True, alpha=0.3)
 
-    filename_plot = f"cruxes_plot_{Novel_Title.replace(' ', '_')}.png"
-    _ = plt.savefig(filename_plot, dpi=300)
-    _ = plt.show();
-
-    print(f'\n\n     >>>>> SAVED PLOT TO FILE: [{filename_plot}] <<<<<')
-
-    # Download Crux Point Plot file 'crux_plot.png' to your laptop
-    files.download(filename_plot)
-
-
-# def crux_extraction(sentencesAroundCrux):
-#     # preconditions: sentencesAroundCrux is an integer, probably between 1 and 20
-
-#     # May have to rerun!!
-#     # Print Context around each Sentiment Peak
-#     halfwin = int(sentencesAroundCrux/2)
-#     crux_sents_ls = []
-#     newline = '\n'
-
-#     print('==================================================')
-#     print('============     Peak Crux Points   ==============')
-#     print('==================================================\n\n')
-
-#     # for i, apeak in enumerate(peaks2):
-#     for i, peak in enumerate(peaks):
-#         crux_sents_ls = []
-#         for sent_idx in range(peak-halfwin,peak+halfwin+1):
-#             sent_cur = sentiment_df.iloc[sent_idx].text_raw
-#             if sent_idx == peak:
-#                 sent_str = sent_cur.upper()
-#             else:
-#                 sent_str = sent_cur
-#             crux_sents_ls.append(sent_str)
+    plt.show()
+    plt.savefig(f"{save_filepath}{title}_{algo}_cruxes_plot.png")
     
-#     # context_ls = sentiment_df.iloc[apeak-halfwin:apeak+halfwin].text_raw
-#     print(f"Peak #{i} at Sentence #{peak}:\n\n{newline.join(crux_sents_ls)}\n\n\n")
-
-#     print('==================================================')
-#     print('===========     Crux Valley Points    ============')
-#     print('==================================================\n\n')
-
-#     # for i, avalley in enumerate(valleys2):
-#     for i, avalley in enumerate(valleys):
-#         crux_sents_ls = []
-#         for sent_idx in range(avalley-halfwin,avalley+halfwin+1):
-#             sent_cur = sentiment_df.iloc[sent_idx].text_raw
-#             if sent_idx == avalley:
-#                 sent_str = sent_cur.upper()
-#             else:
-#                 sent_str = sent_cur
-#             crux_sents_ls.append(sent_str)
-
-#     # context_ls = novel_df.iloc[avalley-halfwin:avalley+halfwin].text_raw
-#     print(f"Valley #{i} at Sentence #{avalley}:\n\n{newline.join(crux_sents_ls)}\n\n\n")
-
-#     filename_cruxes = f"cruxes_context_{Novel_Title.replace(' ', '_')}.txt" 
-
-#     with open(filename_cruxes, 'w') as f:
-#         f.write(str(cap))
+    return peaks, x[peaks], valleys, x[valleys]
 
 
-#     # Download Crux Point Report file 'cruxes.txt' to your laptop
-#     files.download(filename_cruxes)
+def crux_extraction(sentiment_df: pd.DataFrame, peaks: list, valleys: list, n=10):
+    """Print Context around each Sentiment Peak
+
+    Args:
+        sentiment_df (pd.DataFrame): dataframe with original raw text
+        peaks (list): indices (sentence nums) of peaks
+        valleys (list): indices (sentence nums) of troughs
+        n (int, optional): Number of sentences around 
+            each crux point to display. Defaults to 10.
+            
+    Returns:
+        crux_context: a string displaying the n sentences around each peak or valley
+    """
+    
+    
+    halfwin = int(n/2)
+    newline = '\n'
+
+    crux_context = '=================================================='
+    crux_context += '============     Peak Crux Points   =============='
+    crux_context += '==================================================\n\n'
+
+    for i, peak in enumerate(peaks): # Iterate through all peaks
+        crux_sents_ls = []
+        for sent_idx in range(peak-halfwin,peak+halfwin+1):
+            sent_cur = sentiment_df.iloc[sent_idx].text_raw
+            if sent_idx == peak: # If current sentence is the one at 
+                                 # which the peak was identified, 
+                                 # print it in all caps
+                sent_str = sent_cur.upper()
+            else:                # Otherwise, print the original sentence
+                sent_str = sent_cur
+            crux_sents_ls.append(sent_str)
+    
+        # context_ls = sentiment_df.iloc[apeak-halfwin:apeak+halfwin].text_raw
+        crux_context += f"Peak #{i} at Sentence #{peak}:\n\n{newline.join(crux_sents_ls)}\n\n\n"
+
+    crux_context += '=================================================='
+    crux_context += '===========     Crux Valley Points    ============'
+    crux_context += '==================================================\n\n'
+
+    for i, valley in enumerate(valleys): # Iterate through all valleys
+        crux_sents_ls = []
+        for sent_idx in range(valley-halfwin,valley+halfwin+1):
+            sent_cur = sentiment_df.iloc[sent_idx].text_raw
+            if sent_idx == valley: # If current sentence is the one at 
+                                    # which the valley was identified, 
+                                    # print it in all caps
+                sent_str = sent_cur.upper()
+            else:                   # Otherwise, print the original sentence
+                sent_str = sent_cur
+            crux_sents_ls.append(sent_str)
+
+        # context_ls = novel_df.iloc[avalley-halfwin:avalley+halfwin].text_raw
+        crux_context += f"Valley #{i} at Sentence #{valley}:\n\n{newline.join(crux_sents_ls)}\n\n\n"
+
+
+    return crux_context
+
 
 
 
