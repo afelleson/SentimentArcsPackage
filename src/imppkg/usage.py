@@ -28,7 +28,7 @@ all_sentiments_df = SA.compute_sentiments(sentiment_df, title)
 smoothed_sentiments_df = SA.plot_sentiments(all_sentiments_df, title,
                                             adjustments="normalizedAdjMean")
 
-cruxes = SA.detect_peaks(smoothed_sentiments_df, 
+cruxes = SA.find_cruxes(smoothed_sentiments_df, 
                          'vader',
                          title,
                          algo = "width",
