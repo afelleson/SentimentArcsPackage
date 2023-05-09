@@ -312,7 +312,7 @@ def preprocess_text(raw_text_str: str, title: str, save = False, save_filepath =
     return create_clean_df(sentences_list, title, save, save_filepath)
 
 
-def vader(sentiment_df: pd.DataFrame, title: str, plot="none", save_filepath = CURRENT_DIR) ->  pd.DataFrame:
+def vader(sentiment_df: pd.DataFrame, title: str, save_filepath = CURRENT_DIR) ->  pd.DataFrame:
     """ TODO
 
     Args:
@@ -336,11 +336,6 @@ def vader(sentiment_df: pd.DataFrame, title: str, plot="none", save_filepath = C
     win_per = 0.1
     win_size = int(win_per * vader_df.shape[0])
     _ = vader_df['sentiment'].rolling(win_size, center=True).mean().plot(grid=True)
-    if plot == "display" or "both": # TODO: add this and the corresponding params to the other models (not important rn)
-        plt.show() # TODO: test this
-    elif plot == "save" or "both":
-        plt.savefig(f"{save_filepath}{title}_raw_sentiments.png")
-        
         
     return vader_df
     # TODO: consider just appending these results to sentiment_df, and if someone wants the vader data only, they can subset that df. This woudl eliminate the need for combine_all_results or whatever in the main pipeline
@@ -354,17 +349,6 @@ def textblob(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     # Create new TextBlob DataFrame to save results
     textblob_df = sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
     textblob_df['sentiment'] = pd.Series(sentiment_textblob_ls) 
-    textblob_df.head()
-
-    # Plot results
-    window_pct = 0.1
-    window_size = int(window_pct * textblob_df.shape[0])
-    _ = textblob_df['sentiment'].rolling(window_size, center=True).mean().plot(grid=True)
-
-    # # Save Model Sentiment Time Series to file
-    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
-    # download_df(textblob_df, novel_camel_str, "textblob")
-    #  # note: just run the download_df() function with the returned value if you want to do this
     
     return textblob_df
 
@@ -421,19 +405,8 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     # TODO: decide where to put this
     # Ensure balance of sentiments
     # distilbert_df['distilbert'].unique()
-    _ = distilbert_df['label'].hist()
+    # _ = distilbert_df['label'].hist()
 
-    # Q: is this different from the visualize function below?
-    # TODO: decide if this is needed anywhere
-    # Plot
-    win_per = 0.1
-    win_size = int(win_per * distilbert_df.shape[0])
-    _ = distilbert_df['sentiment'].rolling(win_size, center=True).mean().plot(grid=True)
-
-    # # Save results to file
-    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
-    # download_df(distilbert_df, novel_camel_str, "distilbert")
-    
     return distilbert_df
 
 
@@ -661,7 +634,7 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
 
     if plot == "save" or plot == "both":
         plt.savefig(f"{save_filepath}{title}_{algo}_cruxes.png")
-    elif plot == "display" or plot == "both":
+    if plot == "display" or plot == "both":
         plt.show()
     
     return peaks, list(x[peaks]), valleys, list(x[valleys])
