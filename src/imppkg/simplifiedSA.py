@@ -28,7 +28,7 @@ PACKAGE_SRC_DIRECTORY = os.path.dirname(THIS_PACKAGE_FILE_PATH)
 nltk_download_dir = os.path.join(PACKAGE_SRC_DIRECTORY, 'my_nltk_dir')
 import nltk
 nltk.download('punkt', download_dir=nltk_download_dir)
-nltk.data.load(os.path.join(nltk_download_dir, 'tokenizers/punkt/english.pickle'))
+nltk.data.load(os.path.join(nltk_download_dir, 'tokenizers','punkt','english.pickle'))
     # Note: To support other langauges, add more nltk.data.load() commands like the one above; just change 'english' to the new language name
 from nltk.tokenize import sent_tokenize
 
@@ -99,7 +99,7 @@ def download_df(df_obj: pd.DataFrame, title: str, save_filepath=CURRENT_DIR, fil
             out_filename = camel_title.split('.')[0] + '_' + datetime_str + filename_suffix + ".csv"
         # print(f'STEP 1. Saving DataFrame: {df_obj.__name__} to temporary VM file: {out_filename}\n') # Also, isinstance(obj, pd.DataFrame)
         print(f'STEP 1. Saving DataFrame to temporary VM file: {out_filename}\n')
-        df_obj.to_csv(f"{save_filepath}{out_filename}", index=False) 
+        df_obj.to_csv(os.path.join(save_filepath,out_filename), index=False)  # TODO: test
     else:
         print(f'ERROR: Object is not a DataFrame [download_df2csv_and_download()]')
         return -1
@@ -400,7 +400,6 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     # Create DataFrame with texts, predictions, labels, and scores
     sentence_num_ls = list(range(len(sentiment_ls)))
     distilbert_df = pd.DataFrame(list(zip(sentence_num_ls, line_ls,sentiment_ls,labels_ls,scores_ls)), columns=['sentence_num','line','sentiment','label','score'])
-    distilbert_df.head()
 
     # TODO: decide where to put this
     # Ensure balance of sentiments
@@ -425,9 +424,6 @@ def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.Dat
             print(f'Success in appending {key} sentiments\n')
         except:
             print(f'Failed in appending {key} sentiments\n')
-
-    # # Save Sentiment Timeseries to Datafile
-    # download_df(all_sentiments_df, title, "merged")
     
     return all_sentiments_df
 
@@ -561,7 +557,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     # y=current_sentiment_arc_df[selected_model.value].values
     # x=np.arange(current_sentiment_arc_df.shape[0]) # i think this is just sentence num?
     # lowess(y, x, frac=1/30)[:,1].tolist()
-    
+
 def find_cruxes(smoothed_sentiments_df: pd.DataFrame, 
                   model: str,
                   title: str,
