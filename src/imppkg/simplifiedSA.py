@@ -563,7 +563,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     # x=np.arange(current_sentiment_arc_df.shape[0]) # i think this is just sentence num?
     # lowess(y, x, frac=1/30)[:,1].tolist()
     
-def detect_peaks(smoothed_sentiments_df: pd.DataFrame, 
+def find_peaks(smoothed_sentiments_df: pd.DataFrame, 
                   model: str,
                   title: str,
                   algo = "width",
