@@ -63,7 +63,7 @@ TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: Use the chardet l
 PARA_SEP = config.get('imports', 'paragraph_separation')
 CURRENT_DIR = os.getcwd()
 # TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function and making a SAobject that has title as a member datum.
-ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert']
+ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert'] #TODO: add nlptown and roberta15lg
 # Custom Exceptions
 class InputFormatException(Exception):
     pass
@@ -311,18 +311,6 @@ def preprocess_text(raw_text_str: str, title: str, save = False, save_filepath =
     sentences_list = segment_sentences(raw_text_str)
     return create_clean_df(sentences_list, title, save, save_filepath)
 
-# preview()
-
-def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODELS_LIST) -> pd.DataFrame:
-    all_sentiments_df = sentiment_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
-    if "vader" in models:
-        all_sentiments_df['vader'] = vader(sentiment_df,title)['sentiment']
-    if "textblob" in models:
-        all_sentiments_df['textblob'] = textblob(sentiment_df,title)['textblob']
-    if "distilbert" in models:
-        all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['distilbert']
-    return all_sentiments_df
-
 def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     sid_obj = SentimentIntensityAnalyzer()
@@ -453,6 +441,16 @@ def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.Dat
     
     return all_sentiments_df
 
+def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODELS_LIST) -> pd.DataFrame:
+    all_sentiments_df = sentiment_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+    if "vader" in models:
+        all_sentiments_df['vader'] = vader(sentiment_df,title)['sentiment']
+    if "textblob" in models:
+        all_sentiments_df['textblob'] = textblob(sentiment_df,title)['textblob']
+    if "distilbert" in models:
+        all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['distilbert']
+    return all_sentiments_df
+
 # This function works on a df containing multiple models, and it creates a new df with the same column names but new sentiment values.
 # TODO: Also create functions that allow the user to input a df with only one model's sentiment values and append adjusted & normalized sentiments as new columns on the same df, in case they want to compare different adjustments & smoothing methods for the same model.
 def plot_sentiments(all_sentiments_df: pd.DataFrame, 
@@ -565,14 +563,15 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     # x=np.arange(current_sentiment_arc_df.shape[0]) # i think this is just sentence num?
     # lowess(y, x, frac=1/30)[:,1].tolist()
     
-def peakDetection(smoothed_sentiments_df: pd.DataFrame, 
+def detect_peaks(smoothed_sentiments_df: pd.DataFrame, 
                   model: str,
                   title: str,
-                  save_filepath = CURRENT_DIR,
                   algo = "width",
+                  plot = "save",
+                  save_filepath = CURRENT_DIR,
                   distance_min = 360,
                   prominence_min = 0.05,
-                  width_min = 25,
+                  width_min = 25
                   ):
     """[summary]
     
@@ -582,16 +581,19 @@ def peakDetection(smoothed_sentiments_df: pd.DataFrame,
 
     Args:
         smoothed_sentiments_df (pd.DataFrame): TODO
-        model (str): 'vader', 'textblob', 'distilbert', 'nlptown', 'roberta15lg' TODO: add the extra models everywhere else or remove from here
+        model (str): 'vader', 'textblob', or 'distilbert'
         title (str): title of text
+        algo (str): "distance", "prominence", or "width". Defauls to 
+            "width".
+        plot (str): "display", "save", or "none". Defaults to "save".
         save_filepath (str): path (ending in '/') to the directory
-            the resulting plot png should be stored in.
-            Defaults to the current working directory.
-        algo (str): "distance", "prominence", or "width". Defauls to "width".
+            the plot should be stored in as a .png. Defaults to the 
+            current working directory.
         distance_min (int, only needed if algo="distance"): 
             Required minimum number of sentences (>= 1) between 
             neighboring peaks. The smallest peaks are removed  until 
-            the condition is fulfilled for all remaining peaks.
+            the condition is fulfilled for all remaining peaks. Defaults 
+            to 360.
         prominence_min (float, only needed if algo="prominence"): TODO
         width_min (int, only needed if algo="width"): TODO
         
@@ -616,24 +618,29 @@ def peakDetection(smoothed_sentiments_df: pd.DataFrame,
         peaks, _ = find_peaks(x, width=width_min)
         valleys, _ = find_peaks(x_inverted, width=width_min)
 
-    _ = plt.plot(x)
-    _ = plt.plot(peaks, x[peaks], "^g", markersize=15, label='peak sentence#') # green triangles
-    _ = plt.plot(valleys, x[valleys], "vr", markersize=15, label='valley sentence#') #red triangles
-    for x_val in peaks: # x_val = index of a peak in x
-        _ = plt.text(x_val, x[x_val], f'    {x_val}', horizontalalignment='left', size='medium', color='black', weight='semibold')
-    for x_val in valleys:
-        _ = plt.text(x_val, x[x_val], f'    {x_val}', horizontalalignment='left', size='medium', color='black', weight='semibold')
-    _ = plt.title(f'{title} \n {algo}-based peak detection ({len(peaks)+len(valleys)} cruxes) \n {len(peaks)} Peaks & {len(valleys)} Valleys', fontsize=16)
-    _ = plt.ylabel('Sentiment')
-    _ = plt.xlabel('Sentence No.')
-    _ = plt.legend(loc='best')
-    _ = plt.grid(True, alpha=0.3)
+    if plot != "none":
+        _ = plt.plot(x)
+        _ = plt.plot(peaks, x[peaks], "^g", markersize=15, label='peak sentence#') # green triangles
+        _ = plt.plot(valleys, x[valleys], "vr", markersize=15, label='valley sentence#') #red triangles
+        for x_val in peaks: # x_val = index of a peak in x
+            _ = plt.text(x_val, x[x_val], f'    {x_val}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+        for x_val in valleys:
+            _ = plt.text(x_val, x[x_val], f'    {x_val}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+        _ = plt.title(f'{title} \n {algo}-based peak detection ({len(peaks)+len(valleys)} cruxes) \n {len(peaks)} Peaks & {len(valleys)} Valleys', fontsize=16)
+        _ = plt.ylabel('Sentiment')
+        _ = plt.xlabel('Sentence No.')
+        _ = plt.legend(loc='best')
+        _ = plt.grid(True, alpha=0.3)
 
-    plt.show()
-    plt.savefig(f"{save_filepath}{title}_{algo}_cruxes_plot.png")
+    if plot == "save":
+        plt.savefig(f"{save_filepath}{title}_{algo}_cruxes_plot.png")
+    elif plot == "display":
+        plt.show()
     
     return peaks, x[peaks], valleys, x[valleys]
-    # TODO: would be nice to have a way for the user to click on a plot where they think the peaks and valleys should be, and then easily convert those chosen points to the right format to highlight them on the plot and pass to the context function
+    # TODO: would be nice to have a way for the user to click on a plot where they think the peaks 
+    # and valleys should be, and then easily convert those chosen points to the right format to 
+    # highlight them on the plot and pass to the context function
 
 def crux_context_str(sentiment_df: pd.DataFrame, 
                      peaks: list, 
