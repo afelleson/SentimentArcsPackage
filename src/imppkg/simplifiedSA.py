@@ -455,11 +455,12 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODE
 # TODO: Also create functions that allow the user to input a df with only one model's sentiment values and append adjusted & normalized sentiments as new columns on the same df, in case they want to compare different adjustments & smoothing methods for the same model.
 def plot_sentiments(all_sentiments_df: pd.DataFrame, 
                         title: str, 
+                        models = ALL_MODELS_LIST,
                         adjustments="normalizedAdjMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
                         smoothing="sma",
                         save_filepath=CURRENT_DIR, 
                         window_pct = 10,
-                        models = ALL_MODELS_LIST) -> pd.DataFrame:
+                        ) -> pd.DataFrame:
     """Saves a .png plot of raw or adjusted sentiments from the selected models.
 
     Saves a .png plot of raw, normed, or normed & adjusted sentiments 
