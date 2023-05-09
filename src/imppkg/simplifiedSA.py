@@ -573,8 +573,8 @@ def detect_peaks(smoothed_sentiments_df: pd.DataFrame,
                   distance_min = 360,
                   prominence_min = 0.05,
                   width_min = 25
-                  ):
-    """[summary]
+                  ) -> tuple[list[int],list[float],list[int],list[float]]:
+    """[summary] TODO
     
     Uses find_peaks() from scipy.signal (using the parameter specified
     by 'algo') to identify peaks and troughs in one model's sentiment
@@ -638,12 +638,12 @@ def detect_peaks(smoothed_sentiments_df: pd.DataFrame,
     elif plot == "display":
         plt.show()
     
-    return peaks, x[peaks], valleys, x[valleys]
+    return peaks, list(x[peaks]), valleys, list(x[valleys])
     # TODO: would be nice to have a way for the user to click on a plot where they think the peaks 
     # and valleys should be, and then easily convert those chosen points to the right format to 
     # highlight them on the plot and pass to the context function
 
-def crux_context_str(sentiment_df: pd.DataFrame, 
+def crux_context(sentiment_df: pd.DataFrame, 
                      peaks: list, 
                      valleys: list, 
                      n=10) -> tuple[list,str]:
