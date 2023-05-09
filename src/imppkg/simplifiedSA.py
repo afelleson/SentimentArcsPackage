@@ -331,11 +331,6 @@ def vader(sentiment_df: pd.DataFrame, title: str, save_filepath = CURRENT_DIR) -
     # Create new VADER DataFrame to save results
     vader_df = sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
     vader_df['sentiment'] = pd.Series(sentiment_vader_ls) 
-    vader_df.head()
-
-    win_per = 0.1
-    win_size = int(win_per * vader_df.shape[0])
-    _ = vader_df['sentiment'].rolling(win_size, center=True).mean().plot(grid=True)
         
     return vader_df
     # TODO: consider just appending these results to sentiment_df, and if someone wants the vader data only, they can subset that df. This woudl eliminate the need for combine_all_results or whatever in the main pipeline
