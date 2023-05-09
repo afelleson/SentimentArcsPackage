@@ -493,7 +493,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         ax = raw_rolling_mean.plot(grid=True, lw=3)
         ax.set_title(f'{title} Sentiment Analysis \n Raw Sentiment Timeseries')
         if plot == "save" or plot == "both":
-            plt.savefig(f"{save_filepath}{title}_raw_sentiments.png")
+            plt.savefig(os.path.join(save_filepath,f"{title}_raw_sentiments.png"))
         if plot == "display" or plot == "both":
             plt.show()
         
@@ -528,7 +528,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             ax = norm_rolling_mean.plot(grid=True, lw=3)
             ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler')
             if plot == "save" or plot == "both":
-                plt.savefig(f"{save_filepath}{title}_normalized_0mean_sentiments.png")
+                plt.savefig(os.path.join(save_filepath,f"{title}_normalized_0mean_sentiments.png"))
             if plot == "display" or plot == "both":
                 plt.show()
             
@@ -546,7 +546,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             ax = norm_adj_rolling_mean.plot(grid=True, lw=3)
             ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler + True Mean Adjustment')
             if plot == "save" or plot == "both":
-                plt.savefig(f"{save_filepath}{title}_normalized_adjusted_mean_sentiments.png")
+                plt.savefig(os.path.join(save_filepath,f"{title}_normalized_adjusted_mean_sentiments.png"))
             if plot == "display" or plot == "both":
                 plt.show()
 
@@ -628,7 +628,7 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
         _ = plt.grid(True, alpha=0.3)
 
     if plot == "save" or plot == "both":
-        plt.savefig(f"{save_filepath}{title}_{algo}_cruxes.png")
+        plt.savefig(os.path.join(save_filepath,f"{title}_{algo}_cruxes.png"))
     if plot == "display" or plot == "both":
         plt.show()
     
