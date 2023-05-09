@@ -2,7 +2,7 @@
 
 [TODO: description]
 
-Based on a .ipynb by Jon Chun, Feb. 2023 TODO: link if on github
+Based on an ipynb by Jon Chun, Feb. 2023 TODO: link if on github
 Version 1: Alex Felleson, May 2023
 """
 
@@ -43,7 +43,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler # TODO: figure ou
 from scipy.signal import find_peaks
 
 
-# Read the toml file that contains settings that advanced users can edit (via ???)
+# Read the toml file that contains settings that advanced users can edit (via ??? TODO?)
 config = configparser.ConfigParser()
 def get_filepath_in_current_package_dir(filename: str) -> str:
     result = os.path.join(PACKAGE_SRC_DIRECTORY, filename)
@@ -63,7 +63,7 @@ TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: Use the chardet l
 PARA_SEP = config.get('imports', 'paragraph_separation')
 CURRENT_DIR = os.getcwd()
 # TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function and making a SAobject that has title as a member datum.
-
+ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert']
 # Custom Exceptions
 class InputFormatException(Exception):
     pass
@@ -151,12 +151,12 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
     return stringToPeep
 
 # TODO: clean up & test or remove
-def gutenberg_import(Novel_Title: str, Gutenberg_URL: str, 
+def gutenberg_import(title: str, Gutenberg_URL: str, 
                     sentence_first_str = None, sentence_last_str = None) -> str:
     #@title Enter the URL of your novel at ***gutenberg.net.au***
     #@markdown Paste the URL to the ***HTML version*** (not plain text).
 
-    # Novel_Title = 'Frankenstein by Mary Shelley'  #@param {type: "string"}
+    # title = 'Frankenstein by Mary Shelley'  #@param {type: "string"}
 
     # Gutenberg_URL = 'https://gutenberg.net.au/ebooks/z00006.html'  #@param {type: "string"}
     # the first sentence in the body of your novel: sentence_first_str
@@ -191,37 +191,37 @@ def gutenberg_import(Novel_Title: str, Gutenberg_URL: str,
 
 def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a verification string if there aren't parameters to adjust here
     # Segment by sentence
-    sentences_ls = sent_tokenize(raw_text_str) # using nltk.tokenize
+    sentences_list = sent_tokenize(raw_text_str) # using nltk.tokenize
 
     # Most of the rest of this function (not the delete empty sentences part) is just returning things for user verification
-    sentence_count = len(sentences_ls)
+    sentence_count = len(sentences_list)
     num_senteces_to_show = 5
 
     verificationString = f'\n----- First {num_senteces_to_show} Sentences: -----\n\n'
-    for i, asent in enumerate(sentences_ls[:num_senteces_to_show]):
+    for i, asent in enumerate(sentences_list[:num_senteces_to_show]):
         verificationString += f'Sentences #{i}: {asent}\n'
 
     print(f'\n----- Last {num_senteces_to_show} Sentences: -----\n')
-    for i, asent in enumerate(sentences_ls[-num_senteces_to_show:]):
+    for i, asent in enumerate(sentences_list[-num_senteces_to_show:]):
         verificationString += f'Sentences #{sentence_count - (num_senteces_to_show - i)}: {asent}\n'
 
     verificationString += f'\n\nThere are {sentence_count} Sentences in the text\n'
 
     # Delete the empty Sentences and those without any alphabetic characters
-    sentences_ls = [x.strip() for x in sentences_ls if len(x.strip()) > 0]
-    sentences_ls = [x.strip() for x in sentences_ls if re.search('[a-zA-Z]', x)]
+    sentences_list = [x.strip() for x in sentences_list if len(x.strip()) > 0]
+    sentences_list = [x.strip() for x in sentences_list if re.search('[a-zA-Z]', x)]
     
-    num_sentences_removed = sentence_count - len(sentences_ls)
+    num_sentences_removed = sentence_count - len(sentences_list)
     if (num_sentences_removed!=0):
         verificationString += f'\n\n{num_sentences_removed} empty and/or non-alphabetic sentences removed\n'
     # Q: How does sentence number & returning sentences around crux points still match up after doing this? Or do we not care exactly where the crux is in the original text? A: The "raw text" column in sentiment_df is the segmentedBySentences result
 
     # Plot distribution of sentence lengths
-    # _ = plt.hist([len(x) for x in sentences_ls], bins=100)
+    # _ = plt.hist([len(x) for x in sentences_list], bins=100)
 
     print(verificationString) # TODO: same deal as before: have a separate verification function that returns this? return this in a list along with the actual return value? just print it?
     
-    return sentences_ls
+    return sentences_list
 
 
 def clean_string(dirty_str: str) -> str: # to be called within create_df_with_text (formerly known as clean_text)
@@ -264,11 +264,11 @@ def clean_string(dirty_str: str) -> str: # to be called within create_df_with_te
     return clean_str 
 
 
-def create_clean_df(sentences_ls: list, novel_title: str, save = False, save_filepath = CURRENT_DIR) -> pd.DataFrame:
+def create_clean_df(sentences_list: list, title: str, save = False, save_filepath = CURRENT_DIR) -> pd.DataFrame:
     
     # Create sentiment_df to hold text sentences and corresponding sentiment values
     sentiment_df = pd.DataFrame
-    sentiment_df = pd.DataFrame({'text_raw': sentences_ls})
+    sentiment_df = pd.DataFrame({'text_raw': sentences_list})
     sentiment_df['text_raw'] = sentiment_df['text_raw'].astype('string')
     sentiment_df['text_raw'] = sentiment_df['text_raw'].str.strip()
 
@@ -295,19 +295,35 @@ def create_clean_df(sentences_ls: list, novel_title: str, save = False, save_fil
     # sentiment_df.cleaned_text.fillna(value='', inplace=True)
 
     # Add Line Numbers
-    sentence_no_ls = list(range(sentiment_df.shape[0]))
-    sentiment_df.insert(0, 'sentence_num', sentence_no_ls)
+    sentence_nums = list(range(sentiment_df.shape[0]))
+    sentiment_df.insert(0, 'sentence_num', sentence_nums)
 
     # View the shortest lines by text_raw_len
     # print("shortest lines by text_raw_len: \n" + sentiment_df.sort_values(by='text_raw_len').head(20)) # only works if you're using pandas instead of modin.pandas
 
     if save:
-        download_df(sentiment_df, novel_title, save_filepath=save_filepath, filename_suffix='_cleaned')
+        download_df(sentiment_df, title, save_filepath=save_filepath, filename_suffix='_cleaned')
     
     return sentiment_df
 
 
-def vader(sentiment_df: pd.DataFrame, novel_title: str) ->  pd.DataFrame:
+def preprocess_text(raw_text_str: str, title: str, save = False, save_filepath = CURRENT_DIR)  -> pd.DataFrame:
+    sentences_list = segment_sentences(raw_text_str)
+    return create_clean_df(sentences_list, title, save, save_filepath)
+
+# preview()
+
+def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODELS_LIST) -> pd.DataFrame:
+    all_sentiments_df = sentiment_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+    if "vader" in models:
+        all_sentiments_df['vader'] = vader(sentiment_df,title)['sentiment']
+    if "textblob" in models:
+        all_sentiments_df['textblob'] = textblob(sentiment_df,title)['textblob']
+    if "distilbert" in models:
+        all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['distilbert']
+    return all_sentiments_df
+
+def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     sid_obj = SentimentIntensityAnalyzer()
     sentiment_vader_ls = [sid_obj.polarity_scores(asentence)['compound'] for asentence in sentiment_df['cleaned_text'].to_list()]
@@ -320,17 +336,12 @@ def vader(sentiment_df: pd.DataFrame, novel_title: str) ->  pd.DataFrame:
     win_per = 0.1
     win_size = int(win_per * vader_df.shape[0])
     _ = vader_df['sentiment'].rolling(win_size, center=True).mean().plot(grid=True)
-
-    # # Save Model Sentiment Time Series to file
-    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
-    # download_df(vader_df, novel_camel_str, "vader")
-    # note: just run the download_df() function with the returned value if you want to do this
-    
+        
     return vader_df
     # TODO: consider just appending these results to sentiment_df, and if someone wants the vader data only, they can subset that df. This woudl eliminate the need for combine_all_results or whatever in the main pipeline
 
 
-def textblob(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
+def textblob(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     from textblob import TextBlob
     sentiment_textblob_ls = [TextBlob(asentence).polarity for asentence in sentiment_df['cleaned_text'].to_list()]
     # sentiment_df['textblob'] = sentiment_df['cleaned_text'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
@@ -346,7 +357,7 @@ def textblob(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
     _ = textblob_df['sentiment'].rolling(window_size, center=True).mean().plot(grid=True)
 
     # # Save Model Sentiment Time Series to file
-    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
+    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
     # download_df(textblob_df, novel_camel_str, "textblob")
     #  # note: just run the download_df() function with the returned value if you want to do this
     
@@ -365,7 +376,7 @@ class SimpleDataset:
         return {k: v[idx] for k, v in self.tokenized_texts.items()}
         
         
-def distilbert(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
+def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     # Some of these might be needed in other transformer models to be added later (TODO)
     from transformers import pipeline
     from transformers import AutoTokenizer, AutoModelWithLMHead  # T5Base 50k
@@ -415,13 +426,13 @@ def distilbert(sentiment_df: pd.DataFrame, novel_title: str) -> pd.DataFrame:
     _ = distilbert_df['sentiment'].rolling(win_size, center=True).mean().plot(grid=True)
 
     # # Save results to file
-    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in novel_title.split()])
+    # novel_camel_str = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
     # download_df(distilbert_df, novel_camel_str, "distilbert")
     
     return distilbert_df
 
 
-def combine_model_results(sentiment_df: pd.DataFrame, novel_title, **kwargs) -> pd.DataFrame:
+def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.DataFrame:
     '''
     Optional named args: vader = vader_df, textblob = textblob_df, 
                          distilbert = distilbert_df, nlptown = nlptown_df, 
@@ -438,10 +449,9 @@ def combine_model_results(sentiment_df: pd.DataFrame, novel_title, **kwargs) -> 
             print(f'Failed in appending {key} sentiments\n')
 
     # # Save Sentiment Timeseries to Datafile
-    # download_df(all_sentiments_df, novel_title, "merged")
+    # download_df(all_sentiments_df, title, "merged")
     
     return all_sentiments_df
-
 
 # This function works on a df containing multiple models, and it creates a new df with the same column names but new sentiment values.
 # TODO: Also create functions that allow the user to input a df with only one model's sentiment values and append adjusted & normalized sentiments as new columns on the same df, in case they want to compare different adjustments & smoothing methods for the same model.
@@ -451,7 +461,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
                         smoothing="sma",
                         save_filepath=CURRENT_DIR, 
                         window_pct = 10,
-                        models = ['vader', 'textblob', 'distilbert']) -> pd.DataFrame:
+                        models = ALL_MODELS_LIST) -> pd.DataFrame:
     """Saves a .png plot of raw or adjusted sentiments from the selected models.
 
     Saves a .png plot of raw, normed, or normed & adjusted sentiments 
@@ -486,15 +496,15 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         TODO
 
     """
-    if window_pct>20 | window_pct<1:
+    if window_pct > 20 or window_pct < 1:
         print("Warning: window percent outside expected range")
-    window_size = int(window_pct/100 * all_sentiments_df.shape[0])
+    window_size = int(window_pct / 100 * all_sentiments_df.shape[0])
 
-    if adjustments=="raw":
-        # Plot Raw Timeseries    
+    if adjustments == "raw":
+        # Plot Raw Timeseries
         raw_rolling_mean = all_sentiments_df[models].rolling(window_size, center=True).mean() #Q: won't this have NA vals for the first few
         ax = raw_rolling_mean.plot(grid=True, lw=3)
-        ax.title.set_text(f'Sentiment Analysis \n {title} \n Raw Sentiment Timeseries')
+        ax.set_title(f'Sentiment Analysis \n {title} \n Raw Sentiment Timeseries')
         plt.savefig(f"{save_filepath}{title}_raw_sentiments_plot.png")
         plt.show()
         
@@ -503,7 +513,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     else:
         # Compute the mean of each raw Sentiment Timeseries and adjust to [-1.0, 1.0] Range
         models_adj_mean_dt = {}
-        if len(models)>1:
+        if len(models) > 1:
             for model in models:
                 model_min = all_sentiments_df[model].min()
                 model_max = all_sentiments_df[model].max()
@@ -523,19 +533,18 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         # Normalize Timeseries with StandardScaler (u=0, sd=+/- 1)
         all_sentiments_norm_df = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
         all_sentiments_norm_df[models] = StandardScaler().fit_transform(all_sentiments_df[models])
-        all_sentiments_norm_df.head()
 
-        if adjustments=="normalizedZeroMean":
+        if adjustments == "normalizedZeroMean":
             # Plot Normalized Timeseries to same mean (Q: Is this mean 0? If not, change filename below.)
             norm_rolling_mean = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
             ax = norm_rolling_mean.plot(grid=True, lw=3)
-            ax.title.set_text(f'Sentiment Analysis \n {title} \n Normalization: Standard Scaler')
+            ax.set_title(f'Sentiment Analysis \n {title} \n Normalization: Standard Scaler')
             # plt.show()
             plt.savefig(f"{save_filepath}{title}_normalized_0mean_sentiments_plot.png")
 
             return norm_rolling_mean
 
-        else: # adjustments=="normalizedAdjMean"
+        else: # adjustments == "normalizedAdjMean"
             # Plot StandardScaler + Original Mean
             # Plot Normalized Timeseries to their adjusted/rescaled original means
             all_sentiments_adjnorm_df = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
@@ -544,7 +553,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
 
             norm_adj_rolling_mean = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
             ax = norm_adj_rolling_mean.plot(grid=True, lw=3)
-            ax.title.set_text(f'Sentiment Analysis \n {title} \n Normalization: Standard Scaler + True Mean Adjustment')
+            ax.set_title(f'Sentiment Analysis \n {title} \n Normalization: Standard Scaler + True Mean Adjustment')
             plt.savefig(f"{save_filepath}{title}_normalized_adjusted_mean_sentiments_plot.png")
             plt.show()
 
@@ -555,7 +564,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     # y=current_sentiment_arc_df[selected_model.value].values
     # x=np.arange(current_sentiment_arc_df.shape[0]) # i think this is just sentence num?
     # lowess(y, x, frac=1/30)[:,1].tolist()
-
+    
 def peakDetection(smoothed_sentiments_df: pd.DataFrame, 
                   model: str,
                   title: str,
@@ -572,6 +581,7 @@ def peakDetection(smoothed_sentiments_df: pd.DataFrame,
     plot. Returns 
 
     Args:
+        smoothed_sentiments_df (pd.DataFrame): TODO
         model (str): 'vader', 'textblob', 'distilbert', 'nlptown', 'roberta15lg' TODO: add the extra models everywhere else or remove from here
         title (str): title of text
         save_filepath (str): path (ending in '/') to the directory
@@ -623,9 +633,12 @@ def peakDetection(smoothed_sentiments_df: pd.DataFrame,
     plt.savefig(f"{save_filepath}{title}_{algo}_cruxes_plot.png")
     
     return peaks, x[peaks], valleys, x[valleys]
+    # TODO: would be nice to have a way for the user to click on a plot where they think the peaks and valleys should be, and then easily convert those chosen points to the right format to highlight them on the plot and pass to the context function
 
-
-def crux_context(sentiment_df: pd.DataFrame, peaks: list, valleys: list, n=10):
+def crux_context_str(sentiment_df: pd.DataFrame, 
+                     peaks: list, 
+                     valleys: list, 
+                     n=10) -> tuple[list,str]:
     """Return sentences around each sentiment crux
 
     Args:
@@ -636,20 +649,27 @@ def crux_context(sentiment_df: pd.DataFrame, peaks: list, valleys: list, n=10):
             each crux point to display. Defaults to 10.
             
     Returns:
-        crux_context: a string displaying the n sentences around each peak or valley
+        crux_context_list (list of tuples): each tuple contains the 
+            string "peak" or "valley", the location of the crux point
+            (int sentence number), and a list of the sentences around it
+            (list[str])
+        crux_context_str (str): a string displaying the n sentences around 
+            each peak or valley, labeled with the same information 
+            contained in crux_context_list
     """
     
-    
-    halfwin = int(n/2)
+    halfwindow = int(n/2)
     newline = '\n'
+    crux_context_list = []
 
-    crux_context = '=================================================='
-    crux_context += '============     Peak Crux Points   =============='
-    crux_context += '==================================================\n\n'
+    crux_context_str = '=================================================='
+    crux_context_str += '============     Peak Crux Points   =============='
+    crux_context_str += '==================================================\n\n'
 
     for i, peak in enumerate(peaks): # Iterate through all peaks
-        crux_sents_ls = []
-        for sent_idx in range(peak-halfwin,peak+halfwin+1):
+        crux_peaks_list = []
+        # context_ls = sentiment_df.iloc[peak-halfwindow:peak+halfwindow].text_raw # alternative to the for loop below, if you don't want the crux sentence capitalized
+        for sent_idx in range(peak-halfwindow,peak+halfwindow+1):
             sent_cur = sentiment_df.iloc[sent_idx].text_raw
             if sent_idx == peak: # If current sentence is the one at 
                                  # which the peak was identified, 
@@ -657,18 +677,19 @@ def crux_context(sentiment_df: pd.DataFrame, peaks: list, valleys: list, n=10):
                 sent_str = sent_cur.upper()
             else:                # Otherwise, print the original sentence
                 sent_str = sent_cur
-            crux_sents_ls.append(sent_str)
-    
-        # context_ls = sentiment_df.iloc[apeak-halfwin:apeak+halfwin].text_raw
-        crux_context += f"Peak #{i} at Sentence #{peak}:\n\n{newline.join(crux_sents_ls)}\n\n\n"
+            crux_peaks_list.append(sent_str)
+            
+        crux_context_str += f"Peak #{i} at Sentence #{peak}:\n\n{newline.join(crux_peaks_list)}\n\n\n"
+        crux_context_list.append(("peak",peak,crux_peaks_list))
 
-    crux_context += '=================================================='
-    crux_context += '===========     Crux Valley Points    ============'
-    crux_context += '==================================================\n\n'
+    crux_context_str += '=================================================='
+    crux_context_str += '===========     Crux Valley Points    ============'
+    crux_context_str += '==================================================\n\n'
 
     for i, valley in enumerate(valleys): # Iterate through all valleys
-        crux_sents_ls = []
-        for sent_idx in range(valley-halfwin,valley+halfwin+1):
+        crux_valleys_list = []
+        # context_ls = sentiment_df.iloc[valley-halfwindow:valley+halfwindow].text_raw # alternative to the for loop below, if you don't want the crux sentence capitalized
+        for sent_idx in range(valley-halfwindow,valley+halfwindow+1):
             sent_cur = sentiment_df.iloc[sent_idx].text_raw
             if sent_idx == valley: # If current sentence is the one at 
                                     # which the valley was identified, 
@@ -676,14 +697,11 @@ def crux_context(sentiment_df: pd.DataFrame, peaks: list, valleys: list, n=10):
                 sent_str = sent_cur.upper()
             else:                   # Otherwise, print the original sentence
                 sent_str = sent_cur
-            crux_sents_ls.append(sent_str)
+            crux_valleys_list.append(sent_str)
 
-        # context_ls = novel_df.iloc[avalley-halfwin:avalley+halfwin].text_raw
-        crux_context += f"Valley #{i} at Sentence #{valley}:\n\n{newline.join(crux_sents_ls)}\n\n\n"
+        
+        crux_context_str += f"Valley #{i} at Sentence #{valley}:\n\n{newline.join(crux_valleys_list)}\n\n\n"
+        crux_context_list.append(("valley",valley,crux_valleys_list))
 
-
-    return crux_context
-
-
-
+    return crux_context_list, crux_context_str
 
