@@ -17,6 +17,41 @@ def test_config(capfd):
 def test_config2(capfd):
     assert PARA_SEP == "\\n\\n"
 
+import os
+
+def test_all():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(current_dir, 'scollins_thehungergames1.txt')
+    
+    print(current_dir)
+    
+    with open(file_path, 'r') as file:
+        text = file.read()
+        
+    title = "Text Title"
+
+    sentiment_df = preprocess_text(text, title)
+    preview(sentiment_df)
+
+    all_sentiments_df = compute_sentiments(sentiment_df, title)
+
+    smoothed_sentiments_df = plot_sentiments(all_sentiments_df, title,
+                                                adjustments="normalizedAdjMean")
+
+    cruxes = find_cruxes(smoothed_sentiments_df, 
+                         'vader',
+                         title,
+                         algo = "width",
+                         plot = "save",
+                         save_filepath = "./plots/",
+                         width_min = 25)
+
+    peak_xs, peak_ys, valley_xs, valley_ys = cruxes
+
+    assert len(peak_xs) > 1
+
+
+
     # Tests from simplifiedSA ipynb:
     # save_df2csv_and_download(temp_df, '_bert-nlptown.txt')
     # clean_str("This \n\n\n is a very dirty DIRTY StrInG!!")

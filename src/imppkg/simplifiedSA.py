@@ -311,7 +311,19 @@ def preprocess_text(raw_text_str: str, title: str, save = False, save_filepath =
     sentences_list = segment_sentences(raw_text_str)
     return create_clean_df(sentences_list, title, save, save_filepath)
 
-def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
+
+def vader(sentiment_df: pd.DataFrame, title: str, plot="none", save_filepath = CURRENT_DIR) ->  pd.DataFrame:
+    """ TODO
+
+    Args:
+        sentiment_df (pd.DataFrame):  TODO
+        title (str): title of the text
+        plot (str, optional): "display", "save", "both", or "none". Defaults to "none".
+        save_filepath (str): TODO
+
+    Returns:
+        pd.DataFrame:  TODO
+    """
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     sid_obj = SentimentIntensityAnalyzer()
     sentiment_vader_ls = [sid_obj.polarity_scores(asentence)['compound'] for asentence in sentiment_df['cleaned_text'].to_list()]
@@ -324,6 +336,11 @@ def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
     win_per = 0.1
     win_size = int(win_per * vader_df.shape[0])
     _ = vader_df['sentiment'].rolling(win_size, center=True).mean().plot(grid=True)
+    if plot == "display" or "both": # TODO: add this and the corresponding params to the other models (not important rn)
+        plt.show() # TODO: test this
+    elif plot == "save" or "both":
+        plt.savefig(f"{save_filepath}{title}_raw_sentiments.png")
+        
         
     return vader_df
     # TODO: consider just appending these results to sentiment_df, and if someone wants the vader data only, they can subset that df. This woudl eliminate the need for combine_all_results or whatever in the main pipeline
@@ -446,9 +463,9 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODE
     if "vader" in models:
         all_sentiments_df['vader'] = vader(sentiment_df,title)['sentiment']
     if "textblob" in models:
-        all_sentiments_df['textblob'] = textblob(sentiment_df,title)['textblob']
+        all_sentiments_df['textblob'] = textblob(sentiment_df,title)['sentiment']
     if "distilbert" in models:
-        all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['distilbert']
+        all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['sentiment']
     return all_sentiments_df
 
 # This function works on a df containing multiple models, and it creates a new df with the same column names but new sentiment values.
@@ -458,6 +475,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
                         models = ALL_MODELS_LIST,
                         adjustments="normalizedAdjMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
                         smoothing="sma",
+                        plot = "save",
                         save_filepath=CURRENT_DIR, 
                         window_pct = 10,
                         ) -> pd.DataFrame:
@@ -482,6 +500,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         smoothing (str): "sma" (simple moving average, aka sliding 
             window with window size determined by window_pct), "lowess"
             (LOWESS smoothing using parameter = [TODO])
+        plot (str): "display", "save", "both", or "none"
         save_filepath (str): path (ending in '/') to the directory
             the resulting plot png should be stored in.
             Defaults to the current working directory.
@@ -503,9 +522,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         # Plot Raw Timeseries
         raw_rolling_mean = all_sentiments_df[models].rolling(window_size, center=True).mean() #Q: won't this have NA vals for the first few
         ax = raw_rolling_mean.plot(grid=True, lw=3)
-        ax.set_title(f'Sentiment Analysis \n {title} \n Raw Sentiment Timeseries')
-        plt.savefig(f"{save_filepath}{title}_raw_sentiments_plot.png")
-        plt.show()
+        ax.set_title(f'{title} Sentiment Analysis \n Raw Sentiment Timeseries')
+        if plot == "save" or plot == "both":
+            plt.savefig(f"{save_filepath}{title}_raw_sentiments.png")
+        if plot == "display" or plot == "both":
+            plt.show()
         
         return raw_rolling_mean
 
@@ -537,9 +558,12 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             # Plot Normalized Timeseries to same mean (Q: Is this mean 0? If not, change filename below.)
             norm_rolling_mean = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
             ax = norm_rolling_mean.plot(grid=True, lw=3)
-            ax.set_title(f'Sentiment Analysis \n {title} \n Normalization: Standard Scaler')
-            # plt.show()
-            plt.savefig(f"{save_filepath}{title}_normalized_0mean_sentiments_plot.png")
+            ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler')
+            if plot == "save" or plot == "both":
+                plt.savefig(f"{save_filepath}{title}_normalized_0mean_sentiments.png")
+            if plot == "display" or plot == "both":
+                plt.show()
+            
 
             return norm_rolling_mean
 
@@ -552,9 +576,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
 
             norm_adj_rolling_mean = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
             ax = norm_adj_rolling_mean.plot(grid=True, lw=3)
-            ax.set_title(f'Sentiment Analysis \n {title} \n Normalization: Standard Scaler + True Mean Adjustment')
-            plt.savefig(f"{save_filepath}{title}_normalized_adjusted_mean_sentiments_plot.png")
-            plt.show()
+            ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler + True Mean Adjustment')
+            if plot == "save" or plot == "both":
+                plt.savefig(f"{save_filepath}{title}_normalized_adjusted_mean_sentiments.png")
+            if plot == "display" or plot == "both":
+                plt.show()
 
             return norm_adj_rolling_mean
         
@@ -584,9 +610,9 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
         smoothed_sentiments_df (pd.DataFrame): TODO
         model (str): 'vader', 'textblob', or 'distilbert'
         title (str): title of text
-        algo (str): "distance", "prominence", or "width". Defauls to 
+        algo (str): "distance", "prominence", or "width". Defaults to 
             "width".
-        plot (str): "display", "save", or "none". Defaults to "save".
+        plot (str): "display", "save", "both" or "none". Defaults to "save".
         save_filepath (str): path (ending in '/') to the directory
             the plot should be stored in as a .png. Defaults to the 
             current working directory.
@@ -633,9 +659,9 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
         _ = plt.legend(loc='best')
         _ = plt.grid(True, alpha=0.3)
 
-    if plot == "save":
-        plt.savefig(f"{save_filepath}{title}_{algo}_cruxes_plot.png")
-    elif plot == "display":
+    if plot == "save" or plot == "both":
+        plt.savefig(f"{save_filepath}{title}_{algo}_cruxes.png")
+    elif plot == "display" or plot == "both":
         plt.show()
     
     return peaks, list(x[peaks]), valleys, list(x[valleys])
