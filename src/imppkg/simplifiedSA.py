@@ -344,7 +344,7 @@ def vader(sentiment_df: pd.DataFrame, title: str, save_filepath = CURRENT_DIR) -
 def textblob(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     from textblob import TextBlob
     sentiment_textblob_ls = [TextBlob(asentence).polarity for asentence in sentiment_df['cleaned_text'].to_list()]
-    # sentiment_df['textblob'] = sentiment_df['cleaned_text'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
+    # sentiment_df['sentiment'] = sentiment_df['cleaned_text'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
     
     # Create new TextBlob DataFrame to save results
     textblob_df = sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
@@ -390,7 +390,7 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     pred_dataset = SimpleDataset(tokenized_texts)
 
     # Run predictions
-    prediction_results = trainer.predict(pred_dataset)
+    prediction_results = trainer.predict(pred_dataset) #TODO: fix error
 
     # Transform predictions to labels
     sentiment_ls = np.argmax(prediction_results.predictions, axis=-1) # used to be prediction_results.predictions.argmax(-1)
@@ -506,22 +506,21 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     else:
         # Compute the mean of each raw Sentiment Timeseries and adjust to [-1.0, 1.0] Range
         models_adj_mean_dt = {}
-        if len(models) > 1:
-            for model in models:
-                model_min = all_sentiments_df[model].min()
-                model_max = all_sentiments_df[model].max()
-                model_range = model_max - model_min
-                model_raw_mean = all_sentiments_df[model].mean()
-                # Rescaling formula: Rescaled Value = (Original Value - Original Minimum) / (Original Maximum - Original Minimum) * (New Maximum - New Minimum) + New Minimum
-                    # TODO: rescale based on each model's potential range instead?
-                if model_range > 2.0:
-                    models_adj_mean_dt[model] = 2*(model_raw_mean + model_min)/model_range - 1.0
-                elif model_range < 1.1: #Q: why not <= 1.0?
-                    models_adj_mean_dt[model] = 2*(model_raw_mean + model_min)/model_range - 1.0
-                    models_adj_mean_dt[model] = 2 * (model_raw_mean - model_min) / model_range - 1.0
-                else:
-                    models_adj_mean_dt[model] = model_raw_mean
-                print(f'Model: {model}\n  Raw Mean: {model_raw_mean}\n  Adj Mean: {models_adj_mean_dt[model]}\n  Min: {model_min}\n  Max: {model_max}\n  Range: {model_range}\n')
+        for model in models:
+            model_min = all_sentiments_df[model].min()
+            model_max = all_sentiments_df[model].max()
+            model_range = model_max - model_min
+            model_raw_mean = all_sentiments_df[model].mean()
+            # Rescaling formula: Rescaled Value = (Original Value - Original Minimum) / (Original Maximum - Original Minimum) * (New Maximum - New Minimum) + New Minimum
+                # TODO: rescale based on each model's potential range instead?
+            if model_range > 2.0:
+                models_adj_mean_dt[model] = 2*(model_raw_mean + model_min)/model_range - 1.0
+            elif model_range < 1.1: #Q: why not <= 1.0?
+                models_adj_mean_dt[model] = 2*(model_raw_mean + model_min)/model_range - 1.0
+                models_adj_mean_dt[model] = 2 * (model_raw_mean - model_min) / model_range - 1.0
+            else:
+                models_adj_mean_dt[model] = model_raw_mean
+            print(f'Model: {model}\n  Raw Mean: {model_raw_mean}\n  Adj Mean: {models_adj_mean_dt[model]}\n  Min: {model_min}\n  Max: {model_max}\n  Range: {model_range}\n')
 
         # Normalize Timeseries with StandardScaler (u=0, sd=+/- 1)
         all_sentiments_norm_df = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
