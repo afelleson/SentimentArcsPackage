@@ -1,4 +1,6 @@
-# First: py -m pip install ~/SentimentArcsPackage (or whatever the path is to your clone of the SentimentArcsPackage repo)
+# First install: py -m pip install ~/SentimentArcsPackage (or whatever the path is to your clone of the SentimentArcsPackage repo)
+# pip install --upgrade ~/SentimentArcsPackage # to update the package (if it was edited and you pulled the new version) but do not force reinstall all its dependencies
+# pip install --upgrade --force-reinstall ~/SentimentArcsPackage # to update your version of the package and uninstall & reinstall all of its dependencies
 
 import imppkg.simplifiedSA as SA
 # from imppkg.simplifiedSA import * # also works, but may run into namespace(?) issues
@@ -30,16 +32,21 @@ def main():
     
     SA.preview(sentiment_df)
 
-    all_sentiments_df = SA.compute_sentiments(sentiment_df, title)
+    all_sentiments_df = SA.compute_sentiments(sentiment_df, title, models=["vader","textblob"])
     print("\ncompute_sentiments done\n")
 
     smoothed_sentiments_df = SA.plot_sentiments(all_sentiments_df, title,
-                                                adjustments="normalizedAdjMean")
+                                                adjustments="normalizedAdjMean",
+                                                models=["vader","textblob"])
     print("\nplot_sentiments done\n")
+    
+    SA.preview(smoothed_sentiments_df)
+    
+    print("\n2nd preview done\n")
 
     cruxes = SA.find_cruxes(smoothed_sentiments_df, 
-                            'vader',
-                            title,
+                            model="vader",
+    						title=title,
                             algo = "width",
                             plot = "save",
                             save_filepath = "./plots/",
@@ -55,7 +62,6 @@ def main():
     print(crux_str)
     
     print("\n\ndone!")
-
 
 
 

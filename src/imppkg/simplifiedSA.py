@@ -459,7 +459,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
 
     Args:
         all_sentiments_df (pd.DataFrame): Dataframe containing sentiment 
-            values in columns named after the models in @'models'
+            values in columns named after the models in `models`
         title (str): Title of text
         adjustments (str): "none" (plot raw sentiments), "normalizedZeroMean" 
             (normalize to mean=0, sd=1), "normalizedAdjMean" (normalize and add
@@ -486,13 +486,16 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         print("Warning: window percentage outside expected range")
     window_size = int(window_pct / 100 * all_sentiments_df.shape[0])
 
+    camel_title = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
+    
     if adjustments == "raw":
         # Plot Raw Timeseries
-        raw_rolling_mean = all_sentiments_df[models].rolling(window_size, center=True).mean() #Q: won't this have NA vals for the first few
+        raw_rolling_mean = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+        raw_rolling_mean[models] = all_sentiments_df[models].rolling(window_size, center=True).mean() #Q: won't this have NA vals for the first few?
         ax = raw_rolling_mean.plot(grid=True, lw=3)
         ax.set_title(f'{title} Sentiment Analysis \n Raw Sentiment Timeseries')
         if plot == "save" or plot == "both":
-            plt.savefig(os.path.join(save_filepath,f"{title}_raw_sentiments.png"))
+            plt.savefig(os.path.join(save_filepath,f"{camel_title}_rawSentiments.png"))
         if plot == "display" or plot == "both":
             plt.show()
         
@@ -523,11 +526,12 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
 
         if adjustments == "normalizedZeroMean":
             # Plot Normalized Timeseries to same mean (Q: Is this mean 0? If not, change filename below.)
-            norm_rolling_mean = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
+            norm_rolling_mean = all_sentiments_norm_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+            norm_rolling_mean[models] = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
             ax = norm_rolling_mean.plot(grid=True, lw=3)
             ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler')
             if plot == "save" or plot == "both":
-                plt.savefig(os.path.join(save_filepath,f"{title}_normalized_0mean_sentiments.png"))
+                plt.savefig(os.path.join(save_filepath,f"{camel_title}_normalizedZeroMeanSentiments.png"))
             if plot == "display" or plot == "both":
                 plt.show()
             
@@ -541,11 +545,12 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             for amodel in models:
                 all_sentiments_adjnorm_df[amodel] = all_sentiments_norm_df[amodel] + models_adj_mean_dt[amodel]
 
-            norm_adj_rolling_mean = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
+            norm_adj_rolling_mean = all_sentiments_adjnorm_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+            norm_adj_rolling_mean[models] = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
             ax = norm_adj_rolling_mean.plot(grid=True, lw=3)
             ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler + True Mean Adjustment')
             if plot == "save" or plot == "both":
-                plt.savefig(os.path.join(save_filepath,f"{title}_normalized_adjusted_mean_sentiments.png"))
+                plt.savefig(os.path.join(save_filepath,f"{camel_title}_normalizedAdjustedMeanSentiments.png"))
             if plot == "display" or plot == "both":
                 plt.show()
 
@@ -627,7 +632,7 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
         _ = plt.grid(True, alpha=0.3)
 
     if plot == "save" or plot == "both":
-        plt.savefig(os.path.join(save_filepath,f"{title}_{algo}_cruxes.png"))
+        plt.savefig(os.path.join(save_filepath,f"{title} cruxes ({algo} algorithm).png"))
     if plot == "display" or plot == "both":
         plt.show()
     
@@ -671,7 +676,7 @@ def crux_context(sentiment_df: pd.DataFrame,
         crux_peaks_list = []
         # context_ls = sentiment_df.iloc[peak-halfwindow:peak+halfwindow].text_raw # alternative to the for loop below, if you don't want the crux sentence capitalized
         for sent_idx in range(peak-halfwindow,peak+halfwindow+1):
-            sent_cur = sentiment_df.iloc[sent_idx].text_raw
+            sent_cur = sentiment_df.iloc[sent_idx]['text_raw']
             if sent_idx == peak: # If current sentence is the one at 
                                  # which the peak was identified, 
                                  # print it in all caps
@@ -691,7 +696,7 @@ def crux_context(sentiment_df: pd.DataFrame,
         crux_valleys_list = []
         # context_ls = sentiment_df.iloc[valley-halfwindow:valley+halfwindow].text_raw # alternative to the for loop below, if you don't want the crux sentence capitalized
         for sent_idx in range(valley-halfwindow,valley+halfwindow+1):
-            sent_cur = sentiment_df.iloc[sent_idx].text_raw
+            sent_cur = sentiment_df.iloc[sent_idx]['text_raw']
             if sent_idx == valley: # If current sentence is the one at 
                                     # which the valley was identified, 
                                     # print it in all caps
