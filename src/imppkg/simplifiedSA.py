@@ -10,7 +10,7 @@ Version 1: Alex Felleson, May 2023
 import re
 import datetime
 import configparser
-import os # used to get path to current file for SA_settings.toml location
+import os
 # import string # defines constants such as ascii_letters (currently not used)
 
 import numpy as np
@@ -23,9 +23,9 @@ import matplotlib.pyplot as plt
 import requests
 
 # For segmenting by sentence
-THIS_PACKAGE_FILE_PATH = os.path.abspath(__file__)
-PACKAGE_SRC_DIRECTORY = os.path.dirname(THIS_PACKAGE_FILE_PATH)
-nltk_download_dir = os.path.join(PACKAGE_SRC_DIRECTORY, 'my_nltk_dir')
+THIS_SOURCE_FILE_PATH = os.path.abspath(__file__)
+THIS_SOURCE_FILE_DIRECTORY = os.path.dirname(THIS_SOURCE_FILE_PATH)
+nltk_download_dir = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'my_nltk_dir')
 import nltk
 nltk.download('punkt', download_dir=nltk_download_dir)
 nltk.data.load(os.path.join(nltk_download_dir, 'tokenizers','punkt','english.pickle'))
@@ -45,14 +45,14 @@ from scipy.signal import find_peaks
 
 # Read the toml file that contains settings that advanced users can edit (via ??? TODO?)
 config = configparser.ConfigParser()
-def get_filepath_in_current_package_dir(filename: str) -> str:
-    result = os.path.join(PACKAGE_SRC_DIRECTORY, filename)
-    if result == None:
+def get_filepath_in_src_dir(filename: str) -> str:
+    result = os.path.join(THIS_SOURCE_FILE_DIRECTORY, filename)
+    if not os.path.exists(result):
         raise Exception("Failed to create filepath in current directory")
     else:
         return result
 
-config.read(get_filepath_in_current_package_dir('SA_settings.toml'))
+config.read(get_filepath_in_src_dir('SA_settings.toml'))
 
 # Set up matplotlib
 plt.rcParams["figure.figsize"] = (20,10)
@@ -70,8 +70,6 @@ class InputFormatException(Exception):
 
 ## COMMON FUNCTIONS ##
 
-def test_func():
-    print("test_func() ran")
 
 # Code to import a csv as a pd.df that can be passed to the model functions: df = pd.read_csv('saved_file.csv')
 
@@ -84,6 +82,25 @@ def test_func():
 #         raise InputFormatException("Can only import a dataframe from a .csv")
 #     # Could have requirements for filename formatting and get title from filename here, and be passing the text around in this whole program as a dict with title: content (str or df) or turn it into an object with member data title, etc as stated in another comment (go look at that one)
 
+def uniquify(path: str) -> str:
+    """Generate a unique filename for a file to be saved.
+    
+    Append (1), (2), etc to a file name if the file already exists.
+
+    Args:
+        path (str): complete path to the file, including the extension
+
+    Returns:
+        str: edited complete path to the file, including the extension
+    """
+    filename, extension = os.path.splitext(path)
+    counter = 1
+
+    while os.path.exists(path):
+        path = filename + " (" + str(counter) + ")" + extension
+        counter += 1
+
+    return path
 
 def download_df(df_obj: pd.DataFrame, title: str, save_filepath=CURRENT_DIR, filename_suffix='_save', nodate=True):
     '''
@@ -97,9 +114,9 @@ def download_df(df_obj: pd.DataFrame, title: str, save_filepath=CURRENT_DIR, fil
         else:
             datetime_str = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
             out_filename = camel_title.split('.')[0] + '_' + datetime_str + filename_suffix + ".csv"
-        # print(f'STEP 1. Saving DataFrame: {df_obj.__name__} to temporary VM file: {out_filename}\n') # Also, isinstance(obj, pd.DataFrame)
-        print(f'STEP 1. Saving DataFrame to temporary VM file: {out_filename}\n')
-        df_obj.to_csv(os.path.join(save_filepath,out_filename), index=False)  # TODO: test
+
+        completepath = os.path.join(save_filepath,out_filename)
+        df_obj.to_csv(uniquify(completepath), index=False)  # TODO: test
     else:
         print(f'ERROR: Object is not a DataFrame [download_df2csv_and_download()]')
         return -1
@@ -314,6 +331,7 @@ def preprocess_text(raw_text_str: str, title: str, save = False, save_filepath =
 
 
 def vader(sentiment_df: pd.DataFrame, title: str, save_filepath = CURRENT_DIR) ->  pd.DataFrame:
+    print("vader")
     """ TODO
 
     Args:
@@ -338,6 +356,7 @@ def vader(sentiment_df: pd.DataFrame, title: str, save_filepath = CURRENT_DIR) -
 
 
 def textblob(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
+    print("textblob")
     from textblob import TextBlob
     sentiment_textblob_ls = [TextBlob(asentence).polarity for asentence in sentiment_df['cleaned_text'].to_list()]
     # sentiment_df['sentiment'] = sentiment_df['cleaned_text'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
@@ -362,6 +381,7 @@ class SimpleDataset:
         
         
 def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
+    print("distilbert")
     # Some of these might be needed in other transformer models to be added later (TODO)
     from transformers import AutoTokenizer #, AutoModelWithLMHead  # T5Base 50k
     from transformers import AutoModelForSequenceClassification, Trainer
@@ -386,7 +406,7 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     pred_dataset = SimpleDataset(tokenized_texts)
 
     # Run predictions
-    prediction_results = trainer.predict(pred_dataset) #TODO: fix error
+    prediction_results = trainer.predict(pred_dataset)
 
     # Transform predictions to labels
     sentiment_ls = np.argmax(prediction_results.predictions, axis=-1) # used to be prediction_results.predictions.argmax(-1)
@@ -406,6 +426,7 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
 
 
 def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.DataFrame:
+    print("combine_model_results")
     # TODO: make these named params instead of freeform? as a check.
     '''
     Optional named args: vader = vader_df, textblob = textblob_df, 
@@ -424,6 +445,7 @@ def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.Dat
     return all_sentiments_df
 
 def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODELS_LIST) -> pd.DataFrame:
+    print("compute_sentiments")
     all_sentiments_df = sentiment_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
     if "vader" in models:
         all_sentiments_df['vader'] = vader(sentiment_df,title)['sentiment']
@@ -482,6 +504,8 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         TODO
 
     """
+    print("plot_sentiments")
+    
     if window_pct > 20 or window_pct < 1:
         print("Warning: window percentage outside expected range")
     window_size = int(window_pct / 100 * all_sentiments_df.shape[0])
@@ -492,10 +516,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         # Plot Raw Timeseries
         raw_rolling_mean = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
         raw_rolling_mean[models] = all_sentiments_df[models].rolling(window_size, center=True).mean() #Q: won't this have NA vals for the first few?
-        ax = raw_rolling_mean.plot(grid=True, lw=3)
+        ax = raw_rolling_mean[models].plot(grid=True, lw=3)
         ax.set_title(f'{title} Sentiment Analysis \n Raw Sentiment Timeseries')
         if plot == "save" or plot == "both":
-            plt.savefig(os.path.join(save_filepath,f"{camel_title}_rawSentiments.png"))
+            completepath = os.path.join(save_filepath,f"{camel_title}_rawSentiments.png")
+            plt.savefig(uniquify(completepath))
         if plot == "display" or plot == "both":
             plt.show()
         
@@ -528,10 +553,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             # Plot Normalized Timeseries to same mean (Q: Is this mean 0? If not, change filename below.)
             norm_rolling_mean = all_sentiments_norm_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
             norm_rolling_mean[models] = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
-            ax = norm_rolling_mean.plot(grid=True, lw=3)
+            ax = norm_rolling_mean[models].plot(grid=True, lw=3)
             ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler')
             if plot == "save" or plot == "both":
-                plt.savefig(os.path.join(save_filepath,f"{camel_title}_normalizedZeroMeanSentiments.png"))
+                completepath = os.path.join(save_filepath,f"{camel_title}_normalizedZeroMeanSentiments.png")
+                plt.savefig(uniquify(completepath))
             if plot == "display" or plot == "both":
                 plt.show()
             
@@ -547,10 +573,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
 
             norm_adj_rolling_mean = all_sentiments_adjnorm_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
             norm_adj_rolling_mean[models] = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
-            ax = norm_adj_rolling_mean.plot(grid=True, lw=3)
-            ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler + True Mean Adjustment')
+            ax = norm_adj_rolling_mean[models].plot(grid=True, lw=3)
+            ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler + Scaled Mean Adjustment')
             if plot == "save" or plot == "both":
-                plt.savefig(os.path.join(save_filepath,f"{camel_title}_normalizedAdjustedMeanSentiments.png"))
+                completepath = os.path.join(save_filepath,f"{camel_title}_normalizedAdjustedMeanSentiments.png")
+                plt.savefig(uniquify(completepath))
             if plot == "display" or plot == "both":
                 plt.show()
 
@@ -632,7 +659,8 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
         _ = plt.grid(True, alpha=0.3)
 
     if plot == "save" or plot == "both":
-        plt.savefig(os.path.join(save_filepath,f"{title} cruxes ({algo} algorithm).png"))
+        completepath = os.path.join(save_filepath,f"{title} cruxes ({algo} algorithm).png")
+        plt.savefig(uniquify(completepath))
     if plot == "display" or plot == "both":
         plt.show()
     
@@ -664,7 +692,7 @@ def crux_context(sentiment_df: pd.DataFrame,
             contained in crux_context_list
     """
     
-    halfwindow = int(n/2)
+    halfwindow = int(n/2) + 1 # round up
     newline = '\n'
     crux_context_list = []
 
@@ -673,39 +701,16 @@ def crux_context(sentiment_df: pd.DataFrame,
     crux_context_str += '==================================================\n\n'
 
     for i, peak in enumerate(peaks): # Iterate through all peaks
-        crux_peaks_list = []
-        # context_ls = sentiment_df.iloc[peak-halfwindow:peak+halfwindow].text_raw # alternative to the for loop below, if you don't want the crux sentence capitalized
-        for sent_idx in range(peak-halfwindow,peak+halfwindow+1):
-            sent_cur = sentiment_df.iloc[sent_idx]['text_raw']
-            if sent_idx == peak: # If current sentence is the one at 
-                                 # which the peak was identified, 
-                                 # print it in all caps
-                sent_str = sent_cur.upper()
-            else:                # Otherwise, print the original sentence
-                sent_str = sent_cur
-            crux_peaks_list.append(sent_str)
-            
-        crux_context_str += f"Peak #{i} at Sentence #{peak}:\n\n{newline.join(crux_peaks_list)}\n\n\n"
-        crux_context_list.append(("peak",peak,crux_peaks_list))
+        peaks_list = sentiment_df.iloc[peak-halfwindow:peak+halfwindow].text_raw
+        crux_context_str += f"Peak #{i} at Sentence #{peak}:\n\n{newline.join(peaks_list)}\n\n\n"
+        crux_context_list.append(("peak",peak,peaks_list))
 
     crux_context_str += '=================================================='
     crux_context_str += '===========     Crux Valley Points    ============'
     crux_context_str += '==================================================\n\n'
 
     for i, valley in enumerate(valleys): # Iterate through all valleys
-        crux_valleys_list = []
-        # context_ls = sentiment_df.iloc[valley-halfwindow:valley+halfwindow].text_raw # alternative to the for loop below, if you don't want the crux sentence capitalized
-        for sent_idx in range(valley-halfwindow,valley+halfwindow+1):
-            sent_cur = sentiment_df.iloc[sent_idx]['text_raw']
-            if sent_idx == valley: # If current sentence is the one at 
-                                    # which the valley was identified, 
-                                    # print it in all caps
-                sent_str = sent_cur.upper()
-            else:                   # Otherwise, print the original sentence
-                sent_str = sent_cur
-            crux_valleys_list.append(sent_str)
-
-        
+        crux_valleys_list = sentiment_df.iloc[valley-halfwindow-1:valley+halfwindow].text_raw
         crux_context_str += f"Valley #{i} at Sentence #{valley}:\n\n{newline.join(crux_valleys_list)}\n\n\n"
         crux_context_list.append(("valley",valley,crux_valleys_list))
 
