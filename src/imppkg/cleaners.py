@@ -1,3 +1,5 @@
+# Stuff to potentially add in the future, based on an OG SentimentArcs util
+
 import spacy
 
 from copy import deepcopy
