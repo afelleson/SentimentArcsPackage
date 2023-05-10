@@ -56,6 +56,7 @@ config.read(get_filepath_in_src_dir('SA_settings.toml'))
 
 # Set up matplotlib
 plt.rcParams["figure.figsize"] = (20,10)
+plt.rcParams["font.size"] = 22
 # TODO: add more setup commands from old util file?
 
 # Global variables
@@ -516,8 +517,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         # Plot Raw Timeseries
         raw_rolling_mean = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
         raw_rolling_mean[models] = all_sentiments_df[models].rolling(window_size, center=True).mean() #Q: won't this have NA vals for the first few?
+        plt.figure().clear()
         ax = raw_rolling_mean[models].plot(grid=True, lw=3)
         ax.set_title(f'{title} Sentiment Analysis \n Raw Sentiment Timeseries')
+        plt.xlabel('Sentence Number')
+        plt.ylabel('Sentiment')
         if plot == "save" or plot == "both":
             completepath = os.path.join(save_filepath,f"{camel_title}_rawSentiments.png")
             plt.savefig(uniquify(completepath))
@@ -553,8 +557,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             # Plot Normalized Timeseries to same mean (Q: Is this mean 0? If not, change filename below.)
             norm_rolling_mean = all_sentiments_norm_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
             norm_rolling_mean[models] = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
+            plt.figure().clear()
             ax = norm_rolling_mean[models].plot(grid=True, lw=3)
             ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler')
+            plt.xlabel('Sentence Number')
+            plt.ylabel('Sentiment')
             if plot == "save" or plot == "both":
                 completepath = os.path.join(save_filepath,f"{camel_title}_normalizedZeroMeanSentiments.png")
                 plt.savefig(uniquify(completepath))
@@ -573,8 +580,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
 
             norm_adj_rolling_mean = all_sentiments_adjnorm_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
             norm_adj_rolling_mean[models] = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
+            plt.figure().clear()
             ax = norm_adj_rolling_mean[models].plot(grid=True, lw=3)
             ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler + Scaled Mean Adjustment')
+            plt.xlabel('Sentence Number')
+            plt.ylabel('Sentiment')
             if plot == "save" or plot == "both":
                 completepath = os.path.join(save_filepath,f"{camel_title}_normalizedAdjustedMeanSentiments.png")
                 plt.savefig(uniquify(completepath))
@@ -619,7 +629,7 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
             Required minimum number of sentences (>= 1) between 
             neighboring peaks. The smallest peaks are removed  until 
             the condition is fulfilled for all remaining peaks. Defaults 
-            to 360.
+            to 360. TODO: add accepted ranges for all these params and add checks in the code (auto correct to max or min)
         prominence_min (float, only needed if algo="prominence"): TODO
         width_min (int, only needed if algo="width"): TODO
         
@@ -645,16 +655,19 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
         valleys, _ = find_peaks(x_inverted, width=width_min)
 
     if plot != "none":
-        _ = plt.plot(x)
+        plt.figure().clear()
+        plt.plot(smoothed_sentiments_df[model_name])
         _ = plt.plot(peaks, x[peaks], "^g", markersize=15, label='peak sentence#') # green triangles
         _ = plt.plot(valleys, x[valleys], "vr", markersize=15, label='valley sentence#') #red triangles
+        yadjust = (smoothed_sentiments_df[model_name].max(skipna=True) - smoothed_sentiments_df[model_name].min(skipna=True)) / 40
+        print(yadjust)
         for x_val in peaks: # x_val = index of a peak in x
-            _ = plt.text(x_val, x[x_val], f'    {x_val}', horizontalalignment='left', size='medium', color='black', weight='semibold')
+            _ = plt.text(x_val, x[x_val]+yadjust, f'{x_val}', horizontalalignment='center', color='black', weight='semibold', fontsize=16)
         for x_val in valleys:
-            _ = plt.text(x_val, x[x_val], f'    {x_val}', horizontalalignment='left', size='medium', color='black', weight='semibold')
-        _ = plt.title(f'{title} \n {algo}-based peak detection ({len(peaks)+len(valleys)} cruxes) \n {len(peaks)} Peaks & {len(valleys)} Valleys', fontsize=16)
-        _ = plt.ylabel('Sentiment')
-        _ = plt.xlabel('Sentence No.')
+            _ = plt.text(x_val, x[x_val]-2*yadjust, f'{x_val}', horizontalalignment='center', color='black', weight='semibold', fontsize=16)
+        _ = plt.title(f'{title} \n {algo}-based peak detection ({len(peaks)+len(valleys)} cruxes) \n {len(peaks)} Peaks & {len(valleys)} Valleys')
+        plt.xlabel('Sentence Number')
+        plt.ylabel('Sentiment')
         _ = plt.legend(loc='best')
         _ = plt.grid(True, alpha=0.3)
 
