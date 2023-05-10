@@ -363,11 +363,11 @@ class SimpleDataset:
         
 def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     # Some of these might be needed in other transformer models to be added later (TODO)
-    from transformers import pipeline
-    from transformers import AutoTokenizer, AutoModelWithLMHead  # T5Base 50k
+    from transformers import AutoTokenizer #, AutoModelWithLMHead  # T5Base 50k
     from transformers import AutoModelForSequenceClassification, Trainer
+    # from transformers import pipeline
     # from transformers import AutoModelForSeq2SeqLM, AutoModelWithLMHead
-    from transformers import BertTokenizer, BertForSequenceClassification
+    # from transformers import BertTokenizer, BertForSequenceClassification
     # import sentencepiece
     
     # Load tokenizer and model, create trainer
