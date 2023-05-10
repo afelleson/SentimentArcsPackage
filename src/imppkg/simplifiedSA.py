@@ -147,6 +147,7 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
         TypeError("You may only preview a string or dataframe with a cleaned_text column")
         stringToPeep = ""
         
+    stringToPeep += "\n\n"
     print(stringToPeep) # TODO: remove all print statements (at very end of package development)
     return stringToPeep
 
@@ -405,6 +406,7 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
 
 
 def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.DataFrame:
+    # TODO: make these named params instead of freeform? as a check.
     '''
     Optional named args: vader = vader_df, textblob = textblob_df, 
                          distilbert = distilbert_df, nlptown = nlptown_df, 
@@ -416,9 +418,8 @@ def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.Dat
     for key, value in kwargs.items():
         try:
             all_sentiments_df[key] = value['sentiment']
-            print(f'Success in appending {key} sentiments\n')
         except:
-            print(f'Failed in appending {key} sentiments\n')
+            print(f'Warning: failed to append {key} sentiments\n')
     
     return all_sentiments_df
 
@@ -430,6 +431,9 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODE
         all_sentiments_df['textblob'] = textblob(sentiment_df,title)['sentiment']
     if "distilbert" in models:
         all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['sentiment']
+    for user_model in models:
+        if user_model not in ALL_MODELS_LIST:
+            print(f"Warning: {user_model} model not found in list of accepted models. Check your spelling.")
     return all_sentiments_df
 
 # This function works on a df containing multiple models, and it creates a new df with the same column names but new sentiment values.
@@ -479,7 +483,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
 
     """
     if window_pct > 20 or window_pct < 1:
-        print("Warning: window percent outside expected range")
+        print("Warning: window percentage outside expected range")
     window_size = int(window_pct / 100 * all_sentiments_df.shape[0])
 
     if adjustments == "raw":

@@ -1,13 +1,14 @@
-# # py -m pip install ~/SentimentArcsPackage (or whatever the path is to the clone of the SentimentArcsPackage repo)
+# First: py -m pip install ~/SentimentArcsPackage (or whatever the path is to your clone of the SentimentArcsPackage repo)
 
-# import imppkg.simplifiedSA as SA
+import imppkg.simplifiedSA as SA
+# from imppkg.simplifiedSA import * # also works, but may run into namespace(?) issues
 
 # ## every function that may raise an exception should be within a try except else block, like this:
 # #     try:
 # #         f = open(arg, 'r')
 # #     except OSError as error:
 # #         print('cannot open', arg)
-# #         print(f"Unexpected {error=}")
+# #         print(f"Unexpected {error: }")
 # #     else:
 # #         print(arg, 'has', len(f.readlines()), 'lines')
 # #         f.close() 
@@ -16,24 +17,49 @@
 # #     print(f"Unexpected {error=}, {type(error)=}") # print or log the exception
 # #     raise # raise it for the user to be able to catch (& see the standard traceback) as well
 
-# with open('input.txt', 'r') as file:
-#     text = file.read()
-# title = "Text Title"
 
-# sentiment_df = SA.preprocess_text(text, title)
-# # preview()
+def main():
+    # Code to be executed when the script is run
 
-# all_sentiments_df = SA.compute_sentiments(sentiment_df, title)
+    with open('scollins_thehungergames1.txt', 'r') as file:
+        text = file.read()
+    title = "Text Title"
 
-# smoothed_sentiments_df = SA.plot_sentiments(all_sentiments_df, title,
-#                                             adjustments="normalizedAdjMean")
+    sentiment_df = SA.preprocess_text(text, title)
+    print("\npreprocess_text done\n")
+    
+    SA.preview(sentiment_df)
 
-# cruxes = SA.find_cruxes(smoothed_sentiments_df, 
-#                          'vader',
-#                          title,
-#                          algo = "width",
-#                          plot = "save",
-#                          save_filepath = "./plots/",
-#                          width_min = 25)
+    all_sentiments_df = SA.compute_sentiments(sentiment_df, title)
+    print("\ncompute_sentiments done\n")
 
-# peak_xs, peak_ys, valley_xs, valley_ys = cruxes
+    smoothed_sentiments_df = SA.plot_sentiments(all_sentiments_df, title,
+                                                adjustments="normalizedAdjMean")
+    print("\nplot_sentiments done\n")
+
+    cruxes = SA.find_cruxes(smoothed_sentiments_df, 
+                            'vader',
+                            title,
+                            algo = "width",
+                            plot = "save",
+                            save_filepath = "./plots/",
+                            width_min = 25)
+
+    print("\nfind_cruxes done\n")
+
+    peak_xs, peak_ys, valley_xs, valley_ys = cruxes
+    
+    print("\ncruxes unpacked successfully\n")
+
+    crux_sents, crux_str = SA.crux_context(smoothed_sentiments_df, peak_xs, valley_xs, n=5)
+    print(crux_str)
+    
+    print("\n\ndone!")
+
+
+
+
+
+# Run main() only when this file is run (not when it's imported as a module)
+if __name__ == "__main__":
+    main()
