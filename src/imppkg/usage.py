@@ -5,7 +5,7 @@
 import imppkg.simplifiedSA as SA
 # from imppkg.simplifiedSA import * # also works, but may run into namespace(?) issues
 
-# ## every function that may raise an exception should be within a try except else block, like this:
+# ## TODO: every function that may raise an exception should be within a try except else block, like this:
 # #     try:
 # #         f = open(arg, 'r')
 # #     except OSError as error:
@@ -21,47 +21,53 @@ import imppkg.simplifiedSA as SA
 
 
 def main():
-    # Code to be executed when the script is run
-
+    # Open a local file containing the raw text to analyze.
     with open('scollins_thehungergames1.txt', 'r') as file:
         text = file.read()
-    title = "Text Title"
+    title = "The Hunger Games" # Name the text document. This will be  
+                               # used to label plots and name files 
+                               # saved by this program
 
+    # Segment text into sentences, clean it, and remove empty sentences
     sentiment_df = SA.preprocess_text(text, title)
-    print("\npreprocess_text done\n")
     
+    # Make sure the result looks how you expected
     SA.preview(sentiment_df)
 
+    # Compute sentiment values for each sentence. 
+    # Available models are "vader", "textblob", and "distbert".
+    # Beware: distilbert takes a long time to run.
     all_sentiments_df = SA.compute_sentiments(sentiment_df, title, models=["vader","textblob"])
-    print("\ncompute_sentiments done\n")
 
+    # Smooth, normalize, and adjust the sentiments for plotting.
+    # This returns a dataframe you can plot on your own, and it also
+    # uses matplotlib to create a plot (showing all models) that you 
+    # can choose to save or view.
     smoothed_sentiments_df = SA.plot_sentiments(all_sentiments_df, title,
                                                 adjustments="normalizedAdjMean",
                                                 models=["vader","textblob"])
-    print("\nplot_sentiments done\n")
-    
-    SA.preview(smoothed_sentiments_df)
-    
-    print("\n2nd preview done\n")
 
+    # For one model, identify the crux points (maxes & mins) using
+    # a specific algorithm and parameter. This creates a plot as well.
+    # It returns the x and y values of each other crux points on the plot,
+    # separated out into peaks and valleys so you can label them differently
+    # on your own plot if you'd like.
     cruxes = SA.find_cruxes(smoothed_sentiments_df, 
+                            title=title,
                             model="vader",
-    						title=title,
                             algo = "width",
                             plot = "save",
                             save_filepath = "./plots/",
                             width_min = 25)
 
-    print("\nfind_cruxes done\n")
 
     peak_xs, peak_ys, valley_xs, valley_ys = cruxes
     
-    print("\ncruxes unpacked successfully\n")
-
+    # Return a list of sentences around each crux point and a string
+    # containing the same info.
     crux_sents, crux_str = SA.crux_context(smoothed_sentiments_df, peak_xs, valley_xs, n=5)
     print(crux_str)
     
-    print("\n\ndone!")
 
 
 

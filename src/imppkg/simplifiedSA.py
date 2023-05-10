@@ -563,15 +563,15 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     # lowess(y, x, frac=1/30)[:,1].tolist()
 
 def find_cruxes(smoothed_sentiments_df: pd.DataFrame, 
-                  model: str,
-                  title: str,
-                  algo = "width",
-                  plot = "save",
-                  save_filepath = CURRENT_DIR,
-                  distance_min = 360,
-                  prominence_min = 0.05,
-                  width_min = 25
-                  ) -> tuple[list[int],list[float],list[int],list[float]]:
+                title: str,
+                model: str,
+                algo = "width",
+                plot = "save",
+                save_filepath = CURRENT_DIR,
+                distance_min = 360,
+                prominence_min = 0.05,
+                width_min = 25
+                ) -> tuple[list[int],list[float],list[int],list[float]]:
     """[summary] TODO
     
     Uses find_peaks() from scipy.signal (using the parameter specified
@@ -580,8 +580,8 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
 
     Args:
         smoothed_sentiments_df (pd.DataFrame): TODO
-        model (str): 'vader', 'textblob', or 'distilbert'
         title (str): title of text
+        model (str): 'vader', 'textblob', or 'distilbert'
         algo (str): "distance", "prominence", or "width". Defaults to 
             "width".
         plot (str): "display", "save", "both" or "none". Defaults to "save".
@@ -642,9 +642,9 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
     # highlight them on the plot and pass to the context function
 
 def crux_context(sentiment_df: pd.DataFrame, 
-                     peaks: list, 
-                     valleys: list, 
-                     n=10) -> tuple[list,str]:
+                 peaks: list, 
+                 valleys: list, 
+                 n=10) -> tuple[list,str]:
     """Return sentences around each sentiment crux
 
     Args:
