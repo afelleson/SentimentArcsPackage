@@ -4,5 +4,8 @@
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
     "python.formatting.provider": "none",
-    "python.analysis.typeCheckingMode": "basic"
+    "python.analysis.typeCheckingMode": "basic",
+    "rewrap.autoWrap.enabled": true,
+    "rewrap.wrappingColumn": 72,
+    "rewrap.reformat": true
 }
