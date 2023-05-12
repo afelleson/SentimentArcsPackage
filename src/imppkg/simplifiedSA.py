@@ -425,7 +425,9 @@ def preprocess_text(raw_text_str: str, title: str, save = False, save_filepath =
     return create_clean_df(sentences_list, title, save, save_filepath)
 
 
-def vader(sentiment_df: pd.DataFrame) ->  pd.DataFrame:
+def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
+    # TODO: remove title from each of these models' params. Not doing
+    # now bc not backwards compatible.
     print("vader")
     """ Run the vader sentiment analysis model.
 
