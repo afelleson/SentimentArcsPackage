@@ -577,7 +577,7 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODE
 def plot_sentiments(all_sentiments_df: pd.DataFrame, 
                         title: str, 
                         models = ALL_MODELS_LIST,
-                        adjustments="normalizedAdjMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
+                        adjustments="normalizedZeroMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
                         smoothing="sma",
                         plot = "save",
                         save_filepath=CURRENT_DIR, 
@@ -602,7 +602,8 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         adjustments (str): "none" (plot raw sentiments), "normalizedZeroMean" 
             (normalize to mean=0, sd=1), "normalizedAdjMean" (normalize and add
             the scaled mean that woudld be computed by adjusting the 
-            original scores so their range is exactly -1 to 1).
+            original scores so their range is exactly -1 to 1). Defaults
+            to normalizedZeroMean.
         smoothing (str): "sma" (simple moving average, aka sliding 
             window with window size determined by window_pct), "lowess"
             (LOWESS smoothing using parameter = [TODO])

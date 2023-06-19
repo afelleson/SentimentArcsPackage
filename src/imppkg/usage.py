@@ -44,7 +44,7 @@ def main():
     # uses matplotlib to create a plot (showing all models) that you 
     # can choose to save or view.
     smoothed_sentiments_df = SA.plot_sentiments(all_sentiments_df, title,
-                                                adjustments="normalizedAdjMean",
+                                                adjustments="normalizedZeroMean",
                                                 models=["vader","textblob"])
 
     # For one model, identify the crux points (maxes & mins) using
