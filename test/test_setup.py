@@ -3,6 +3,9 @@ import pytest
 import os
 from imppkg.simplifiedSA import *
 
+def test_placeholder():
+    pass
+
 # def test_preprocess():
 #     current_dir = os.path.dirname(os.path.abspath(__file__))
 #     file_path = os.path.join(current_dir, 'scollins_thehungergames1.txt')

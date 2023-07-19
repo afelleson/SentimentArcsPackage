@@ -11,7 +11,11 @@ import re
 import datetime
 import configparser
 import os
-# import string # defines constants such as ascii_letters (currently not used)
+# import string # defines constants such as ascii_letters (currently not
+# used)
+
+THIS_SOURCE_FILE_PATH = os.path.abspath(__file__)
+THIS_SOURCE_FILE_DIRECTORY = os.path.dirname(THIS_SOURCE_FILE_PATH)
 
 import numpy as np
 # import modin.pandas as pd # Modin — uses multiple cores for operations on pandas dfs. I think this uses an old version of pandas, forcing a reinstall of pandas :( Also removes from functionality from df methods, including sort_values(). So no longer using this, for now.
@@ -23,14 +27,15 @@ import matplotlib.pyplot as plt
 import requests
 
 # For segmenting by sentence
-THIS_SOURCE_FILE_PATH = os.path.abspath(__file__)
-THIS_SOURCE_FILE_DIRECTORY = os.path.dirname(THIS_SOURCE_FILE_PATH)
-nltk_download_dir = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'my_nltk_dir')
-import nltk
-nltk.download('punkt', download_dir=nltk_download_dir)
-nltk.data.load(os.path.join(nltk_download_dir, 'tokenizers','punkt','english.pickle'))
-    # Note: To support other langauges, add more nltk.data.load() commands like the one above; just change 'english' to the new language name
-from nltk.tokenize import sent_tokenize
+from pysbd.utils import PySBDFactory
+import spacy
+# Note: We are now using spacy/pysbd instead of nltk.
+# nltk_download_dir = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'my_nltk_dir')
+# import nltk
+# nltk.download('punkt', download_dir=nltk_download_dir)
+# nltk.data.load(os.path.join(nltk_download_dir, 'tokenizers','punkt','english.pickle'))
+#     # Note: To support other langauges, add more nltk.data.load() commands like the one above; just change 'english' to the new language name
+# from nltk.tokenize import sent_tokenize
 
 # For text cleaning
 from cleantext import clean # TODO: remove dependency (clean-text library) if possible
@@ -61,10 +66,19 @@ plt.rcParams["font.size"] = 22
 
 # Global variables
 TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: Use the chardet library to detect the file's character encoding instead
-PARA_SEP = config.get('imports', 'paragraph_separation')
+PARA_SEP = config.get('imports', 'paragraph_separation').encode('unicode_escape') # :/ can't use cuz doesn't equal r'\n{2,} and wasn't able to convert. dont really need tho.
 CURRENT_DIR = os.getcwd()
 # TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function and making a SAobject that has title as a member datum.
-ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert'] #TODO: add nlptown and roberta15lg
+ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert','all_sentimentr',
+                   'sentimentr_jockersrinker','sentimentr_jockers',
+                   'sentimentr_huliu','sentimentr_nrc','sentimentr_senticnet',
+                   'sentimentr_sentiword','sentimentr_loughran_mcdonald',
+                   'sentimentr_socal_google',
+                   ] 
+                    # TODO: add nlptown and roberta15lg.
+                    # Note: sentimentR lexicons not included right now =
+                    # emojis_sentiment, hash_sentiment_emojis, and 
+                    # hash_sentiment_slangsd.
 
 # Custom Exceptions
 class InputFormatException(Exception):
@@ -272,7 +286,85 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
 
 def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a verification string if there aren't parameters to adjust here
     # Segment by sentence
-    sentences_list = sent_tokenize(raw_text_str) # using nltk.tokenize
+    # sentences_list = sent_tokenize(raw_text_str) # Previous method,
+    # using only nltk.tokenize for all sentence tokenization. Can
+    # delete.
+     
+    # Add custom rules for spacy
+    from spacy.language import Language
+
+    def beginning_of_quote_component_func(doc):
+        # Fixes issue where a beginning quotation mark was being treated as a separate sentence from the rest of the quote
+        for i, token in enumerate(doc[:-1]):
+            openingQuotes = ['“','"']
+            if token.text in openingQuotes and doc[i + 1].is_alpha and doc[i + 1].text.is_upper:
+                doc[i + 1].is_sent_start = False
+                doc[i].is_sent_start = True
+        return doc
+
+    @Language.component("beginning_of_quote_component")
+    def beginning_of_quote_component(doc):
+        return beginning_of_quote_component_func(doc)
+    
+    # ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' <ELLIPSIS> ', raw_text_str)
+    
+    # def ellipsis_lowercase_component_func(doc):
+    #     # Marks ellipsis followed by a lowercase letter as not a sentence break
+    #     for i, token in enumerate(doc[:-2]):
+    #         print(str(token))
+    #         if token.text == '<ELLIPSIS>':
+    #             if doc[i + 1].is_space and doc[i + 2].text.is_lower:
+    #                 print("YES\n")
+    #                 doc[i].is_sent_start = False
+    #                 doc[i + 1].is_sent_start = False
+    #                 doc[i + 2].is_sent_start = False
+    #             elif doc[i + 1].is_space and doc[i + 2].text[0].is_upper:
+    #                 doc[i].is_sent_start = False
+    #                 doc[i + 1].is_sent_start = True # ?
+    #                 doc[i + 2].is_sent_start = False # ?
+    #             # idk if i should specify every other case. we've got
+    #             quotation marks, question marks, and all options
+    #             without a space between the ellipsis and the next thing.
+    #     return doc
+
+    # @Language.component("ellipsis_lowercase_component")
+    # def ellipsis_lowercase_component(doc):
+    #     return ellipsis_lowercase_component_func(doc)
+
+    # Create spacy pipes
+    nlp = spacy.blank('en')
+    nlp.add_pipe('sentencizer')
+    nlp.add_pipe("beginning_of_quote_component") # custom rule
+    # nlp.add_pipe("ellipsis_lowercase_component") # custom rule
+    
+    parags_ls = re.split(r'\n{2,}', raw_text_str) # Split text into paragraphs
+    parags_ls = [x.strip() for x in parags_ls]
+    
+    sentences_list = []
+    for para in parags_ls:
+        para_no_newlines = re.sub('[\n]{1,}', ' ', para)
+        
+        # Round 1: PySBD
+        doc = nlp(para_no_newlines)
+        para_sents_pysbd_list = list(doc.sents)
+        para_sents_pysbd_list = [str(x) for x in para_sents_pysbd_list] # temporary replacement for following line
+        # para_sents_pysbd_list = [str(x).strip() for x in para_sents_pysbd_list]  # Strip leading/trailing whitespace
+        
+        # # Round 2: NLTK
+            # On The Hunger Games, this only separates out opening
+            # quotation marks and ellipses as their own sentences, which
+            # is incorrect. End result is fine, but nltk is not adding
+            # any beneficial functionality.
+        # para_sents_nltk_list = [sent_tokenize(sent) for sent in para_sents_pysbd_list]
+        # import itertools
+        # para_sents_nltk_list = list(itertools.chain.from_iterable(para_sents_nltk_list))  # Flatten the list
+        # # para_sents_nltk_list = sent_tokenize(para_no_newlines) # replacement for previous 3 lines if not using pysbd
+        # para_sents_nltk_list = [str(x).strip() for x in para_sents_nltk_list] # Strip leading/trailing whitespace
+
+        para_sents_list = [x for x in para_sents_pysbd_list if (len(x) > 1)] # Filter out empty and 1-character sentences
+
+        sentences_list.extend(para_sents_list)
+        
 
     # Most of the rest of this function (not the delete empty sentences part) is just returning things for user verification
     sentence_count = len(sentences_list)
@@ -290,7 +382,7 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
 
     # Delete the empty Sentences and those without any alphabetic characters
     sentences_list = [x.strip() for x in sentences_list if len(x.strip()) > 0]
-    sentences_list = [x.strip() for x in sentences_list if re.search('[a-zA-Z]', x)]
+    sentences_list = [x for x in sentences_list if re.search('[a-zA-Z]', x)]
     
     num_sentences_removed = sentence_count - len(sentences_list)
     if (num_sentences_removed!=0):
@@ -327,7 +419,7 @@ def clean_string(dirty_str: str) -> str:
         no_numbers=False,               # replace all numbers with a special token
         no_digits=False,                # replace all digits with a special token
         no_currency_symbols=False,      # replace all currency symbols with a special token
-        no_punct=False,                 # remove punctuation
+        no_punct=False,                 # remove punctuation # TODO: Check if we should remove punct. Would like to before running through sentimentR, I think. At least change ellipses to commas for sentimentR.
         # replace_with_punct="",          # instead of removing punctuations, you may replace them
         # replace_with_url="<URL>",
         # replace_with_email="<EMAIL>",
@@ -335,7 +427,7 @@ def clean_string(dirty_str: str) -> str:
         # replace_with_number="<NUMBER>",
         # replace_with_digit="0",
         # replace_with_currency_symbol="<CUR>",
-        lang="en"                       # set to 'de' for German special handling
+        lang="en"
     )
 
     # Replace all new lines/returns with single whitespace
@@ -422,12 +514,13 @@ def preprocess_text(raw_text_str: str, title: str, save = False, save_filepath =
             passed to a sentiment analysis model function
     """
     sentences_list = segment_sentences(raw_text_str)
-    return create_clean_df(sentences_list, title, save, save_filepath)
+    clean_df = create_clean_df(sentences_list, title, save, save_filepath)
+    return clean_df
 
 
 def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
     # TODO: remove title from each of these models' params. Not doing
-    # now bc not backwards compatible.
+    # now bc not backwards compatible (Dev's code will break)
     print("vader")
     """ Run the vader sentiment analysis model.
 
@@ -523,7 +616,31 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
 
     return distilbert_df
 
+def all_sentimentr(sentiment_df: pd.DataFrame, title: str):
+    # 'sentimentr_jockersrinker','sentimentr_jockers',
+    #    'sentimentr_huliu','sentimentr_nrc','sentimentr_senticnet',
+    #    'sentimentr_sentiword','sentimentr_loughran_mcdonald',
+    #    'sentimentr_socal_google'
+    
+    import rpy2.robjects as robjects
+    r = robjects.r
+    r_file_path = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'run_sentimentr.R')
+    r['source'](r_file_path)
+    get_sentimentr_rfunction = robjects.globalenv['get_sentimentr_values'] # note to self: if this doesn't work, you'll have to pass the restore function to the main one
+    
+    sentences_vec = robjects.StrVector(sentiment_df['cleaned_text'].to_list()) # Convert Python List of Strings to a R character vector
+    sentimentr_rdf = get_sentimentr_rfunction(sentences_vec)
 
+    # Convert rpy2.robjects.vectors.DataFrame to pandas.core.frame.DataFrame
+    sentimentr_df = pd.DataFrame.from_dict({ key : np.asarray(sentimentr_rdf.rx2(key)) for key in sentimentr_rdf.names })
+    
+    sentimentr_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), sentimentr_df.iloc[:,1:]], axis=1) # sentimentr_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), sentimentr_df.loc[:, sentimentr_df.columns!='text_clean']], axis=1)
+
+    return sentimentr_df
+
+# TODO: get rid of this function? (I think Dev's code relies on it,
+# currently.) Should we keep it in case people decide they want to run &
+# compare more models later?
 def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.DataFrame:
     print("combine_model_results")
     # TODO: make these named params instead of freeform? as a check.
@@ -553,7 +670,7 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODE
         title (str): The text title
         models (list of strings, optional): A list of the sentiment
             analysis models to be run, with lowercase titles. Defaults 
-            to ['vader', 'textblob', 'distilbert'].
+            to ['vader', 'textblob', 'distilbert','sentimentr'].
 
     Returns:
         pd.DataFrame: sentiment_df with appended columns named after
@@ -567,6 +684,8 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODE
         all_sentiments_df['textblob'] = textblob(sentiment_df,title)['sentiment']
     if "distilbert" in models:
         all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['sentiment']
+    if "all_sentimentr" in models:
+        all_sentiments_df = pd.concat([all_sentiments_df, all_sentimentr(sentiment_df,title).iloc[:, 5:].copy(deep=True)], axis=1)
     for user_model in models:
         if user_model not in ALL_MODELS_LIST:
             print(f"Warning: {user_model} model not found in list of accepted models. Check your spelling.")
@@ -598,7 +717,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             analysis models to be run, with lowercase titles. Must 
             contain models with the same timesereies length 
             (sentimentR cannot be included without adjustments). 
-            Defaults to ['vader', 'textblob', 'distilbert']. 
+            Defaults to ['vader', 'textblob', 'distilbert','sentimentr']. 
         adjustments (str): "none" (plot raw sentiments), "normalizedZeroMean" 
             (normalize to mean=0, sd=1), "normalizedAdjMean" (normalize and add
             the scaled mean that woudld be computed by adjusting the 
@@ -624,7 +743,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     print("plot_sentiments")
     
     if window_pct > 20 or window_pct < 1:
-        print("Warning: window percentage outside expected range")
+        print("Warning: window percentage outside expected range (1-20%)")
     window_size = int(window_pct / 100 * all_sentiments_df.shape[0])
 
     camel_title = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
@@ -632,7 +751,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     if adjustments == "raw":
         # Plot Raw Timeseries
         raw_rolling_mean = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
-        raw_rolling_mean[models] = all_sentiments_df[models].rolling(window_size, center=True).mean() #Q: won't this have NA vals for the first few?
+        raw_rolling_mean[models] = all_sentiments_df[models].rolling(window_size, center=True).mean()
         plt.figure().clear()
         ax = raw_rolling_mean[models].plot(grid=True, lw=3)
         ax.set_title(f'{title} Sentiment Analysis \n Raw Sentiment Timeseries')
@@ -734,7 +853,7 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
     Args:
         smoothed_sentiments_df (pd.DataFrame): TODO
         title (str): title of text
-        model (str): 'vader', 'textblob', or 'distilbert'
+        model (str): 'vader', 'textblob', 'distilbert', or 'sentimentr'
         algo (str): "distance", "prominence", or "width". Defaults to 
             "width".
         plot (str): "display", "save", "both" or "none". Defaults to "save".

@@ -1,5 +1,5 @@
 [imports]
-paragraph_separation = \n\n
+paragraph_separation = \n{2,}
 section_separation = \n\nsection \S*?\n\n
 text_encoding = utf-8
 
