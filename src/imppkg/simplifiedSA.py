@@ -69,16 +69,18 @@ TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: Use the chardet l
 PARA_SEP = config.get('imports', 'paragraph_separation').encode('unicode_escape') # :/ can't use cuz doesn't equal r'\n{2,} and wasn't able to convert. dont really need tho.
 CURRENT_DIR = os.getcwd()
 # TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function and making a SAobject that has title as a member datum.
-ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert','all_sentimentr',
-                   'sentimentr_jockersrinker','sentimentr_jockers',
-                   'sentimentr_huliu','sentimentr_nrc','sentimentr_senticnet',
-                   'sentimentr_sentiword','sentimentr_loughran_mcdonald',
-                   'sentimentr_socal_google',
-                   ] 
-                    # TODO: add nlptown and roberta15lg.
-                    # Note: sentimentR lexicons not included right now =
-                    # emojis_sentiment, hash_sentiment_emojis, and 
-                    # hash_sentiment_slangsd.
+ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert', 'sentimentr',
+                   ]
+        # TODO: add nlptown and roberta15lg after figuring out how to
+        # source more compute power.
+        # Note: sentimentR lexicons not included right now =
+        # emojis_sentiment, hash_sentiment_emojis, 
+        # hash_sentiment_slangsd, and hash_sentiment_loughran_mcdonald
+        # (the last one is for financial texts).
+        # 'sentimentr' runs lexicons 'sentimentr_jockersrinker',
+        # 'sentimentr_jockers', 'sentimentr_huliu','sentimentr_nrc',
+        # 'sentimentr_senticnet', 'sentimentr_sentiword',
+        # 'sentimentr_loughran_mcdonald', 'sentimentr_socal_google'
 
 # Custom Exceptions
 class InputFormatException(Exception):
@@ -297,7 +299,7 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
         # Fixes issue where a beginning quotation mark was being treated as a separate sentence from the rest of the quote
         for i, token in enumerate(doc[:-1]):
             openingQuotes = ['“','"']
-            if token.text in openingQuotes and doc[i + 1].is_alpha and doc[i + 1].text.is_upper:
+            if token.text in openingQuotes and doc[i + 1].is_alpha and doc[i + 1].text[0].isupper:
                 doc[i + 1].is_sent_start = False
                 doc[i].is_sent_start = True
         return doc
@@ -550,11 +552,21 @@ def textblob(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     print("textblob")
     from textblob import TextBlob
     sentiment_textblob_ls = [TextBlob(asentence).polarity for asentence in sentiment_df['cleaned_text'].to_list()]
+        # From TextBlob docs: The sentiment property returns a named 
+        # tuple of the form Sentiment(polarity, subjectivity). 
+        # The polarity score is a float within the range [-1.0, 1.0]. 
+        # The subjectivity is a float within  the range [0.0, 1.0], 
+        # where 0.0 is very objective and 1.0 is very subjective.
     # sentiment_df['sentiment'] = sentiment_df['cleaned_text'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
     
+    # change this to be sentiment instead of polarity for the new method
+    sentiment_textblob_ls = [TextBlob(asentence).sentiment for asentence in sentiment_df['cleaned_text'].to_list()]
     # Create new TextBlob DataFrame to save results
     textblob_df = sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
-    textblob_df['sentiment'] = pd.Series(sentiment_textblob_ls) 
+    # textblob_df['sentiment'] = pd.Series(sentiment_textblob_ls) #old
+    # new
+    textblob_df['sentiment'] = pd.Series([x.polarity for x in sentiment_textblob_ls]) 
+    textblob_df['subjectivity'] = pd.Series([x.subjectivity for x in sentiment_textblob_ls]) 
     
     return textblob_df
 
@@ -582,7 +594,7 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     # import sentencepiece
     
     # Load tokenizer and model, create trainer
-    model_name = "distilbert-base-uncased-finetuned-sst-2-english"
+    model_name = "distilbert-base-uncased-finetuned-sst-2-english" # Note: use a cased model for German
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     trainer = Trainer(model=model)
@@ -616,7 +628,7 @@ def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
 
     return distilbert_df
 
-def all_sentimentr(sentiment_df: pd.DataFrame, title: str):
+def sentimentr(sentiment_df: pd.DataFrame, title: str):
     # 'sentimentr_jockersrinker','sentimentr_jockers',
     #    'sentimentr_huliu','sentimentr_nrc','sentimentr_senticnet',
     #    'sentimentr_sentiword','sentimentr_loughran_mcdonald',
@@ -684,8 +696,8 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODE
         all_sentiments_df['textblob'] = textblob(sentiment_df,title)['sentiment']
     if "distilbert" in models:
         all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['sentiment']
-    if "all_sentimentr" in models:
-        all_sentiments_df = pd.concat([all_sentiments_df, all_sentimentr(sentiment_df,title).iloc[:, 5:].copy(deep=True)], axis=1)
+    if "sentimentr" in models:
+        all_sentiments_df = pd.concat([all_sentiments_df, sentimentr(sentiment_df,title).iloc[:, 5:].copy(deep=True)], axis=1)
     for user_model in models:
         if user_model not in ALL_MODELS_LIST:
             print(f"Warning: {user_model} model not found in list of accepted models. Check your spelling.")
