@@ -87,8 +87,6 @@ class InputFormatException(Exception):
     pass
 
 
-## COMMON FUNCTIONS ##
-
 # If using pandas as pd:
 #   Code to import a csv as a pd.df that can be passed to the model functions: 
 #       df = pd.read_csv('saved_file.csv')
@@ -172,10 +170,8 @@ def download_df(df_obj: pd.DataFrame, title: str,
 
         completepath = os.path.join(save_filepath,out_filename)
         df_obj.to_csv(uniquify(completepath), index=False)  # TODO: test
-        return 0, None
     else:
-        print(f'ERROR: Object is not a DataFrame [download_df2csv_and_download()]')
-        return -1, "Error: Object is not a DataFrame"
+        raise TypeError('Expected pandas DataFrame as first argument; got ' + str(type(df_obj).__name__))
 
 
 def upload_text(filepath: str) -> str:
@@ -244,7 +240,7 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
         stringToPeep = ""
         
     stringToPeep += "\n\n"
-    print(stringToPeep) # TODO: remove all print statements (at very end of package development)
+    print(stringToPeep) # TODO: remove all print statements (at end of package development)
     return stringToPeep
 
 # TODO: clean up & test or remove
@@ -285,6 +281,16 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
     
 #     return(raw_text_str)
 
+def replace_ellipses(raw_text_str:  str) -> str:
+    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' <ELLIPSIS> ', raw_text_str)
+    # change mid-sentence ellipses to commas 
+    
+    
+    # and change end-of-sentence ellipses (including ones before a line break!) to periods
+    # How to deal with mid sentence ellipsis before a proper noun? I was thinking it’d be good enough to replace them with a period.
+    # If there’s only one word before the ellipsis, make it a comma. Otherwise, a period is fine.
+    # If sentence or quote begins with ellipsis, just remove the ellipsis.
+
 
 def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a verification string if there aren't parameters to adjust here
     # Segment by sentence
@@ -308,38 +314,38 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
     def beginning_of_quote_component(doc):
         return beginning_of_quote_component_func(doc)
     
-    # ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' <ELLIPSIS> ', raw_text_str)
+    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' <ELLIPSIS> ', raw_text_str)
     
-    # def ellipsis_lowercase_component_func(doc):
-    #     # Marks ellipsis followed by a lowercase letter as not a sentence break
-    #     for i, token in enumerate(doc[:-2]):
-    #         print(str(token))
-    #         if token.text == '<ELLIPSIS>':
-    #             if doc[i + 1].is_space and doc[i + 2].text.is_lower:
-    #                 print("YES\n")
-    #                 doc[i].is_sent_start = False
-    #                 doc[i + 1].is_sent_start = False
-    #                 doc[i + 2].is_sent_start = False
-    #             elif doc[i + 1].is_space and doc[i + 2].text[0].is_upper:
-    #                 doc[i].is_sent_start = False
-    #                 doc[i + 1].is_sent_start = True # ?
-    #                 doc[i + 2].is_sent_start = False # ?
-    #             # idk if i should specify every other case. we've got
-    #             quotation marks, question marks, and all options
-    #             without a space between the ellipsis and the next thing.
-    #     return doc
+    def ellipsis_lowercase_component_func(doc):
+        # Marks ellipsis followed by a lowercase letter as not a sentence break
+        for i, token in enumerate(doc[:-2]):
+            print(str(token))
+            if token.text == '<ELLIPSIS>':
+                if doc[i + 1].is_space and doc[i + 2].text.is_lower:
+                    print("YES\n")
+                    doc[i].is_sent_start = False
+                    doc[i + 1].is_sent_start = False
+                    doc[i + 2].is_sent_start = False
+                elif doc[i + 1].is_space and doc[i + 2].text[0].isupper:
+                    doc[i].is_sent_start = False
+                    doc[i + 1].is_sent_start = True # ?
+                    doc[i + 2].is_sent_start = False # ?
+                # idk if i should specify every other case. we've got
+                # quotation marks, question marks, and all options
+                # without a space between the ellipsis and the next thing.
+        return doc
 
-    # @Language.component("ellipsis_lowercase_component")
-    # def ellipsis_lowercase_component(doc):
-    #     return ellipsis_lowercase_component_func(doc)
+    @Language.component("ellipsis_lowercase_component")
+    def ellipsis_lowercase_component(doc):
+        return ellipsis_lowercase_component_func(doc)
 
     # Create spacy pipes
     nlp = spacy.blank('en')
     nlp.add_pipe('sentencizer')
     nlp.add_pipe("beginning_of_quote_component") # custom rule
-    # nlp.add_pipe("ellipsis_lowercase_component") # custom rule
+    nlp.add_pipe("ellipsis_lowercase_component") # custom rule
     
-    parags_ls = re.split(r'\n{2,}', raw_text_str) # Split text into paragraphs
+    parags_ls = re.split(r'\n{2,}', ellipses_replaced_text) # Split text into paragraphs
     parags_ls = [x.strip() for x in parags_ls]
     
     sentences_list = []
@@ -421,7 +427,7 @@ def clean_string(dirty_str: str) -> str:
         no_numbers=False,               # replace all numbers with a special token
         no_digits=False,                # replace all digits with a special token
         no_currency_symbols=False,      # replace all currency symbols with a special token
-        no_punct=False,                 # remove punctuation # TODO: Check if we should remove punct. Would like to before running through sentimentR, I think. At least change ellipses to commas for sentimentR.
+        no_punct=False,                 # remove punctuation
         # replace_with_punct="",          # instead of removing punctuations, you may replace them
         # replace_with_url="<URL>",
         # replace_with_email="<EMAIL>",
@@ -442,7 +448,7 @@ def clean_string(dirty_str: str) -> str:
 
 
 def create_clean_df(sentences_list: list[str], title: str, save = False, save_filepath = CURRENT_DIR) -> pd.DataFrame:
-    """Clean DataFrame of raw and cleaned sentences
+    """Create DataFrame of raw and cleaned sentences
 
     From a list of sentences, create a DataFrame with columns 
     'text_raw', 'cleaned_text', and 'cleaned_text_len'.
