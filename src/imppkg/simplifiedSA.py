@@ -370,7 +370,7 @@ def segment_sentences(raw_text_str:  str) -> list:
     return sentences_list
 
 
-def clean_string(dirty_str: str) -> str:
+def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -> str:
     #TODO: add options, and add more functions in here that take care of stuff clean-text doesn't, like emoticons
     """Clean a string
 
@@ -380,13 +380,20 @@ def clean_string(dirty_str: str) -> str:
     Returns:
         str: A cleaned string
     """
+    
+    # Replace ellipses
+    mid_cleaning_str = re.sub(r'^ \. \. \.', r'', dirty_str) # If sentence begins with an ellipsis, remove the ellipsis.
+    mid_cleaning_str = re.sub(r'^("|“) \. \. \.', r'', mid_cleaning_str) # If quote begins with an ellipsis, remove the ellipsis.
+    mid_cleaning_str = re.sub(r' \. \. \.', r',', mid_cleaning_str) # Replace ellipses with commas
+    
+    # Expand contractions
+    if expand_contractions:
+        mid_cleaning_str = contractions.fix(mid_cleaning_str)
 
-    contraction_expanded_str = contractions.fix(dirty_str)
-
-    clean_str = clean(contraction_expanded_str, # TODO: detemine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
+    mid_cleaning_str = clean(mid_cleaning_str, # TODO: detemine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
         fix_unicode=True,               # fix various unicode errors
         to_ascii=True,                  # transliterate to closest ASCII representation
-        lower=False,                     # lowercase text # TODO: ask what benefit this has
+        lower=lowercase,                # lowercase text
         no_line_breaks=False,           # fully strip line breaks as opposed to only normalizing them
         no_urls=False,                  # replace all URLs with a special token
         no_emails=False,                # replace all email addresses with a special token
@@ -404,13 +411,8 @@ def clean_string(dirty_str: str) -> str:
         # replace_with_currency_symbol="<CUR>",
         lang="en"
     )
-
-    # # Replace all new lines/returns with single whitespace (now done before sentence separation)
-    # clean_str = clean_str.replace('\n\r', ' ') # I think these could be commented out bc clean() with no_line_breaks=True already does those
-    # clean_str = clean_str.replace('\n', ' ')
-    # clean_str = clean_str.replace('\r', ' ')
     
-    clean_str = ' '.join(clean_str.split()) # remove leading, trailing, and repeated spaces
+    clean_str = ' '.join(mid_cleaning_str.split()) # remove leading, trailing, and repeated spaces, just in case any made it through.
 
     return clean_str 
 
