@@ -292,11 +292,20 @@ def replace_ellipses(raw_text_str:  str) -> str:
     # If sentence or quote begins with ellipsis, just remove the ellipsis.
 
 
-def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a verification string if there aren't parameters to adjust here
-    # Segment by sentence
-    # sentences_list = sent_tokenize(raw_text_str) # Previous method,
-    # using only nltk.tokenize for all sentence tokenization. Can
-    # delete.
+def segment_sentences(raw_text_str:  str) -> list:
+    
+    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' /ELLIPSIS/ ', raw_text_str)
+    
+    parags_ls = re.split(r'\n{2,}', ellipses_replaced_text) # Split text into paragraphs
+    
+    # Random cleanup stuff
+    parags_ls = [x.replace('”“','” “') for x in parags_ls]
+    
+    # Clean up miscellaneous line breaks and spaces
+    parags_ls = [x.replace('\n', ' ') for x in parags_ls] # remove single line breaks
+    parags_ls = [x.replace('\r', ' ') for x in parags_ls] # remove single line breaks
+    parags_ls = [' '.join(x.split()) for x in parags_ls] # remove leading, trailing, and *repeated* spaces
+
      
     # Add custom rules for spacy
     from spacy.language import Language
@@ -314,43 +323,23 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
     def beginning_of_quote_component(doc):
         return beginning_of_quote_component_func(doc)
     
-    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' /ELLIPSIS/ ', raw_text_str)
-    
-    def ellipsis_lowercase_component_func(doc):
-        # Marks ellipsis followed by a lowercase letter as not a sentence break
-        for i, token in enumerate(doc[:-2]):
-            print(str(token))
-            if token.text == '/ELLIPSIS/' and token.is_sent_start:
-                if doc[i + 1].text.islower:
-                    print("YES\n")
-                    doc[i].is_sent_start = False
-                    doc[i + 1].is_sent_start = False
-                    doc[i + 2].is_sent_start = False
-                elif doc[i + 1].text[0].isupper:
-                    doc[i].is_sent_start = False
-                    doc[i + 1].is_sent_start = True # ?
-                    doc[i + 2].is_sent_start = False # ?
-                # idk if i should specify every other case. we've got
-                # quotation marks, question marks, and all options
-                # without a space between the ellipsis and the next thing.
+    def sentence_ending_in_I_component_func(doc):
+        # Fixes issue where "I." was not considered a sentence end
+        # because I is a single letter.
+        for i, token in enumerate(doc[:-1]):
+            if token.text == "I.":
+                doc[i + 1].is_sent_start = True
         return doc
 
-    @Language.component("ellipsis_lowercase_component")
-    def ellipsis_lowercase_component(doc):
-        return ellipsis_lowercase_component_func(doc)
-
+    @Language.component("sentence_ending_in_I_component")
+    def sentence_ending_in_I_component(doc):
+        return sentence_ending_in_I_component_func(doc)
+    
     # Create spacy sentence separation pipes
     nlp = spacy.blank('en')
     nlp.add_pipe('sentencizer')
     nlp.add_pipe("beginning_of_quote_component") # custom rule
-    # nlp.add_pipe("ellipsis_lowercase_component") # custom rule
-    
-    parags_ls = re.split(r'\n{2,}', ellipses_replaced_text) # Split text into paragraphs
-    
-    # Clean up miscellaneous line breaks and spaces
-    parags_ls = [x.replace('\n', ' ') for x in parags_ls] # remove single line breaks
-    parags_ls = [x.replace('\r', ' ') for x in parags_ls] # remove single line breaks
-    parags_ls = [' '.join(x.split()) for x in parags_ls] # remove leading, trailing, and *repeated* spaces
+    nlp.add_pipe("sentence_ending_in_I_component") # custom rule
     
     sentences_list = []
     for para in parags_ls:
@@ -371,7 +360,8 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
         # # para_sents_nltk_list = sent_tokenize(para) # replacement for previous 3 lines if not using pysbd
         # para_sents_nltk_list = [str(x).strip() for x in para_sents_nltk_list] # Strip leading/trailing whitespace
 
-        ellipses_rereplaced_para_sents = [re.sub(r'/ELLIPSIS/', r'. . .', x) for x in para_sents_pysbd_list]
+        ellipses_rereplaced_para_sents = [re.sub(r' /ELLIPSIS/ ”', r' . . .”', x) for x in para_sents_pysbd_list]
+        ellipses_rereplaced_para_sents = [re.sub(r' /ELLIPSIS/ ', r' . . . ', x) for x in ellipses_rereplaced_para_sents]
         para_sents_list = [x for x in ellipses_rereplaced_para_sents if (len(x) > 1)] # Remove empty and 1-character sentences
         para_sents_list = [x for x in para_sents_list if re.search('[a-zA-Z]', x)] # Remove sentences without any alphabetic characters
 
