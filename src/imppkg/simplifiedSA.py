@@ -371,7 +371,8 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
         # # para_sents_nltk_list = sent_tokenize(para) # replacement for previous 3 lines if not using pysbd
         # para_sents_nltk_list = [str(x).strip() for x in para_sents_nltk_list] # Strip leading/trailing whitespace
 
-        para_sents_list = [x for x in para_sents_pysbd_list if (len(x) > 1)] # Remove empty and 1-character sentences
+        ellipses_rereplaced_para_sents = [re.sub(r'/ELLIPSIS/', r'. . .', x) for x in para_sents_pysbd_list]
+        para_sents_list = [x for x in ellipses_rereplaced_para_sents if (len(x) > 1)] # Remove empty and 1-character sentences
         para_sents_list = [x for x in para_sents_list if re.search('[a-zA-Z]', x)] # Remove sentences without any alphabetic characters
 
         sentences_list.extend(para_sents_list)
