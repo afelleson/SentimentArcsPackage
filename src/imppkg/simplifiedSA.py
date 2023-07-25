@@ -314,19 +314,19 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
     def beginning_of_quote_component(doc):
         return beginning_of_quote_component_func(doc)
     
-    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' <ELLIPSIS> ', raw_text_str)
+    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' /ELLIPSIS/ ', raw_text_str)
     
     def ellipsis_lowercase_component_func(doc):
         # Marks ellipsis followed by a lowercase letter as not a sentence break
         for i, token in enumerate(doc[:-2]):
             print(str(token))
-            if token.text == '<ELLIPSIS>':
-                if doc[i + 1].is_space and doc[i + 2].text.is_lower:
+            if token.text == '/ELLIPSIS/' and token.is_sent_start:
+                if doc[i + 1].text.islower:
                     print("YES\n")
                     doc[i].is_sent_start = False
                     doc[i + 1].is_sent_start = False
                     doc[i + 2].is_sent_start = False
-                elif doc[i + 1].is_space and doc[i + 2].text[0].isupper:
+                elif doc[i + 1].text[0].isupper:
                     doc[i].is_sent_start = False
                     doc[i + 1].is_sent_start = True # ?
                     doc[i + 2].is_sent_start = False # ?
@@ -339,24 +339,26 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
     def ellipsis_lowercase_component(doc):
         return ellipsis_lowercase_component_func(doc)
 
-    # Create spacy pipes
+    # Create spacy sentence separation pipes
     nlp = spacy.blank('en')
     nlp.add_pipe('sentencizer')
     nlp.add_pipe("beginning_of_quote_component") # custom rule
-    nlp.add_pipe("ellipsis_lowercase_component") # custom rule
+    # nlp.add_pipe("ellipsis_lowercase_component") # custom rule
     
     parags_ls = re.split(r'\n{2,}', ellipses_replaced_text) # Split text into paragraphs
-    parags_ls = [x.strip() for x in parags_ls]
+    
+    # Clean up miscellaneous line breaks and spaces
+    parags_ls = [x.replace('\n', ' ') for x in parags_ls] # remove single line breaks
+    parags_ls = [x.replace('\r', ' ') for x in parags_ls] # remove single line breaks
+    parags_ls = [' '.join(x.split()) for x in parags_ls] # remove leading, trailing, and *repeated* spaces
     
     sentences_list = []
     for para in parags_ls:
-        para_no_newlines = re.sub('[\n]{1,}', ' ', para)
         
         # Round 1: PySBD
-        doc = nlp(para_no_newlines)
+        doc = nlp(para)
         para_sents_pysbd_list = list(doc.sents)
-        para_sents_pysbd_list = [str(x) for x in para_sents_pysbd_list] # temporary replacement for following line
-        # para_sents_pysbd_list = [str(x).strip() for x in para_sents_pysbd_list]  # Strip leading/trailing whitespace
+        para_sents_pysbd_list = [str(x).strip() for x in para_sents_pysbd_list]  # Strip leading/trailing whitespace
         
         # # Round 2: NLTK
             # On The Hunger Games, this only separates out opening
@@ -366,39 +368,13 @@ def segment_sentences(raw_text_str:  str) -> list: # TODO: don't print/have a ve
         # para_sents_nltk_list = [sent_tokenize(sent) for sent in para_sents_pysbd_list]
         # import itertools
         # para_sents_nltk_list = list(itertools.chain.from_iterable(para_sents_nltk_list))  # Flatten the list
-        # # para_sents_nltk_list = sent_tokenize(para_no_newlines) # replacement for previous 3 lines if not using pysbd
+        # # para_sents_nltk_list = sent_tokenize(para) # replacement for previous 3 lines if not using pysbd
         # para_sents_nltk_list = [str(x).strip() for x in para_sents_nltk_list] # Strip leading/trailing whitespace
 
-        para_sents_list = [x for x in para_sents_pysbd_list if (len(x) > 1)] # Filter out empty and 1-character sentences
+        para_sents_list = [x for x in para_sents_pysbd_list if (len(x) > 1)] # Remove empty and 1-character sentences
+        para_sents_list = [x for x in para_sents_list if re.search('[a-zA-Z]', x)] # Remove sentences without any alphabetic characters
 
         sentences_list.extend(para_sents_list)
-        
-
-    # Most of the rest of this function (not the delete empty sentences part) is just returning things for user verification
-    sentence_count = len(sentences_list)
-    num_senteces_to_show = 5
-
-    verificationString = f'\n----- First {num_senteces_to_show} Sentences: -----\n\n'
-    for i, asent in enumerate(sentences_list[:num_senteces_to_show]):
-        verificationString += f'Sentences #{i}: {asent}\n'
-
-    print(f'\n----- Last {num_senteces_to_show} Sentences: -----\n')
-    for i, asent in enumerate(sentences_list[-num_senteces_to_show:]):
-        verificationString += f'Sentences #{sentence_count - (num_senteces_to_show - i)}: {asent}\n'
-
-    verificationString += f'\n\nThere are {sentence_count} Sentences in the text\n'
-
-    # Delete the empty Sentences and those without any alphabetic characters
-    sentences_list = [x.strip() for x in sentences_list if len(x.strip()) > 0]
-    sentences_list = [x for x in sentences_list if re.search('[a-zA-Z]', x)]
-    
-    num_sentences_removed = sentence_count - len(sentences_list)
-    if (num_sentences_removed!=0):
-        verificationString += f'\n\n{num_sentences_removed} empty and/or non-alphabetic sentences removed\n'
-    # Q: How does sentence number & returning sentences around crux points still match up after doing this? Or do we not care exactly where the crux is in the original text? 
-    # A: The "raw text" column in sentiment_df is the segmentedBySentences result
-
-    print(verificationString) # TODO: same deal as before: have a separate verification function that returns this? return this in a list along with the actual return value? just print it?
     
     return sentences_list
 
@@ -419,7 +395,7 @@ def clean_string(dirty_str: str) -> str:
     clean_str = clean(contraction_expanded_str, # TODO: detemine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
         fix_unicode=True,               # fix various unicode errors
         to_ascii=True,                  # transliterate to closest ASCII representation
-        lower=True,                     # lowercase text
+        lower=False,                     # lowercase text # TODO: ask what benefit this has
         no_line_breaks=False,           # fully strip line breaks as opposed to only normalizing them
         no_urls=False,                  # replace all URLs with a special token
         no_emails=False,                # replace all email addresses with a special token
@@ -438,11 +414,12 @@ def clean_string(dirty_str: str) -> str:
         lang="en"
     )
 
-    # Replace all new lines/returns with single whitespace
-    # clean_str = clean_str.replace('\n\r', ' ') # I think these are commented out bc clean() with no_line_breaks=True already does those
+    # # Replace all new lines/returns with single whitespace (now done before sentence separation)
+    # clean_str = clean_str.replace('\n\r', ' ') # I think these could be commented out bc clean() with no_line_breaks=True already does those
     # clean_str = clean_str.replace('\n', ' ')
     # clean_str = clean_str.replace('\r', ' ')
-    clean_str = ' '.join(clean_str.split()) # remove leading, trailing, and *repeated* spaces
+    
+    clean_str = ' '.join(clean_str.split()) # remove leading, trailing, and repeated spaces
 
     return clean_str 
 
@@ -467,8 +444,8 @@ def create_clean_df(sentences_list: list[str], title: str, save = False, save_fi
             passed to a sentiment analysis model function
     """
     
-    # Create sentiment_df to hold text sentences and corresponding sentiment values
-    sentiment_df = pd.DataFrame
+    # Create sentiment_df to hold text sentences and corresponding
+    # sentiment values
     sentiment_df = pd.DataFrame({'text_raw': sentences_list})
     sentiment_df['text_raw'] = sentiment_df['text_raw'].astype('string')
     sentiment_df['text_raw'] = sentiment_df['text_raw'].str.strip()
@@ -476,8 +453,6 @@ def create_clean_df(sentences_list: list[str], title: str, save = False, save_fi
     # clean the 'text_raw' column and create the 'cleaned_text' column
     # novel_df['cleaned_text'] = hero.clean(novel_df['text_raw'])
     sentiment_df['cleaned_text'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x)) # call clean_str()
-    sentiment_df['cleaned_text'] = sentiment_df['cleaned_text'].astype('string')
-    sentiment_df['cleaned_text'] = sentiment_df['cleaned_text'].str.strip() # strips leading and trailing whitespaces & newlines
     sentiment_df['text_raw_len'] = sentiment_df['text_raw'].apply(lambda x: len(x))
     sentiment_df['cleaned_text_len'] = sentiment_df['cleaned_text'].apply(lambda x: len(x))
 
@@ -489,15 +464,10 @@ def create_clean_df(sentences_list: list[str], title: str, save = False, save_fi
     neutral_word = 'NEUTRALWORD'
     sentiment_df[sentiment_df['cleaned_text_len'] == 0]['cleaned_text'] = neutral_word
     sentiment_df[sentiment_df['cleaned_text_len'] == 0]['cleaned_text_len'] = 11
-    sentiment_df['cleaned_text_len'].sort_values(ascending=True) # , key=lambda x: len(x), inplace=True)
-    # sentiment_df.cleaned_text.fillna(value='', inplace=True)
 
     # Add Line Numbers
     sentence_nums = list(range(sentiment_df.shape[0]))
     sentiment_df.insert(0, 'sentence_num', sentence_nums)
-
-    # View the shortest lines by text_raw_len
-    # print("shortest lines by text_raw_len: \n" + sentiment_df.sort_values(by='text_raw_len').head(20)) # only works if you're using pandas instead of modin.pandas
 
     if save:
         download_df(sentiment_df, title, save_filepath=save_filepath, filename_suffix='_cleaned')
