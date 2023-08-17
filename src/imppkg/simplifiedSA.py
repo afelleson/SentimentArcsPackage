@@ -1,9 +1,10 @@
-"""simplifiedSA.py
+"""
+simplifiedSA.py
 
 [TODO: description]
 
-Based on an ipynb by Jon Chun, Feb. 2023 TODO: link if on github
-Version 1: Alex Felleson, May 2023
+Version 1: Alex Felleson, August 2023
+Based on an ipynb by Jon Chun, Feb. 2023: https://github.com/jon-chun/sentimentarcs_simplified
 """
 
 # Standard library imports
@@ -11,20 +12,13 @@ import re
 import datetime
 import configparser
 import os
-# import string # defines constants such as ascii_letters (currently not
-# used)
 
 THIS_SOURCE_FILE_PATH = os.path.abspath(__file__)
 THIS_SOURCE_FILE_DIRECTORY = os.path.dirname(THIS_SOURCE_FILE_PATH)
 
 import numpy as np
-# import modin.pandas as pd # Modin — uses multiple cores for operations on pandas dfs. I think this uses an old version of pandas, forcing a reinstall of pandas :( Also removes from functionality from df methods, including sort_values(). So no longer using this, for now.
-import pandas as pd
+import pandas as pd # Not currently using modin (uses multiple cores for operations on pandas dfs, so should be faster) because it uses an old version of pandas, forcing a reinstall of pandas, and may remove some functionality from df methods that we need here. Could reevaluate this choice in the future.
 import matplotlib.pyplot as plt
-# import seaborn as sns
-
-# For gutenberg imports
-import requests
 
 # For segmenting by sentence
 from pysbd.utils import PySBDFactory
@@ -48,7 +42,9 @@ from sklearn.preprocessing import StandardScaler # TODO: figure out if necessary
 from scipy.signal import find_peaks
 
 
-# Read the toml file that contains settings that advanced users can edit (via ??? TODO?)
+# Read the toml file that contains settings that advanced users can edit
+# (via ??? TODO?)
+# (Not currently using either of the imported global variables below)
 config = configparser.ConfigParser()
 def get_filepath_in_src_dir(filename: str) -> str:
     result = os.path.join(THIS_SOURCE_FILE_DIRECTORY, filename)
@@ -56,17 +52,15 @@ def get_filepath_in_src_dir(filename: str) -> str:
         raise Exception("Failed to create filepath in current directory")
     else:
         return result
-
 config.read(get_filepath_in_src_dir('SA_settings.toml'))
-
+TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: Use the chardet library to detect the file's character encoding instead, probably
+PARA_SEP = config.get('imports', 'paragraph_separation').encode('unicode_escape') # :/ can't use cuz doesn't equal r'\n{2,}' and wasn't able to convert.
 # Set up matplotlib
 plt.rcParams["figure.figsize"] = (20,10)
 plt.rcParams["font.size"] = 22
 # TODO: add more setup commands from old util file?
 
 # Global variables
-TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: Use the chardet library to detect the file's character encoding instead
-PARA_SEP = config.get('imports', 'paragraph_separation').encode('unicode_escape') # :/ can't use cuz doesn't equal r'\n{2,} and wasn't able to convert. dont really need tho.
 CURRENT_DIR = os.getcwd()
 # TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function and making a SAobject that has title as a member datum.
 ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert', 'sentimentr',
@@ -74,23 +68,19 @@ ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert', 'sentimentr',
         # TODO: add nlptown and roberta15lg after figuring out how to
         # source more compute power.
         # Note: sentimentR lexicons not included right now =
-        # emojis_sentiment, hash_sentiment_emojis, 
-        # hash_sentiment_slangsd, and hash_sentiment_loughran_mcdonald
-        # (the last one is for financial texts).
+        # emojis_sentiment, hash_sentiment_emojis, and
+        # hash_sentiment_slangsd.
         # 'sentimentr' runs lexicons 'sentimentr_jockersrinker',
         # 'sentimentr_jockers', 'sentimentr_huliu','sentimentr_nrc',
         # 'sentimentr_senticnet', 'sentimentr_sentiword',
-        # 'sentimentr_loughran_mcdonald', 'sentimentr_socal_google'
-
-# Custom Exceptions
-class InputFormatException(Exception):
-    pass
+        # 'sentimentr_loughran_mcdonald', 
+        # 'hash_sentiment_loughran_mcdonald', 'sentimentr_socal_google'
 
 
-# If using pandas as pd:
-#   Code to import a csv as a pd.df that can be passed to the model functions: 
-#       df = pd.read_csv('saved_file.csv')
-# Elif using modin.pandas as pd:
+### FUNCTIONS ###
+
+# If using modin.pandas as pd:
+# Code to import a csv as a pd.df that can be passed to the model functions: 
 # def import_df(filepath: str) -> pd.DataFrame: 
 #     # This function should exist (rather than having the user import their 
 #     # df themself) only if we're using modin.pandas as pd instead of using 
@@ -103,7 +93,7 @@ class InputFormatException(Exception):
 #     if file_extension=="csv": # Technically, pd.read_csv() should also work with .txt files
 #         return pd.read_csv(filepath)
 #     else:
-#         raise InputFormatException("Can only import a dataframe from a .csv")
+#         raise ValueError("Can only import a dataframe from a .csv")
 #     # Could have requirements for filename formatting and get title from filename here, and be passing the text around in this whole program as a dict with title: content (str or df) or turn it into an object with member data title, etc as stated in another comment (go look at that one)
 
 def uniquify(path: str) -> str:
@@ -130,7 +120,7 @@ def uniquify(path: str) -> str:
 def download_df(df_obj: pd.DataFrame, title: str, 
                 save_filepath=CURRENT_DIR, 
                 filename_suffix='_df', 
-                nodate=True):
+                date=False):
     """Write DataFrame object to csv file.
 
     Save DataFrame as a csv file named after the text title + the given 
@@ -145,8 +135,8 @@ def download_df(df_obj: pd.DataFrame, title: str,
             the csv. Defaults to the current working directory.
         filename_suffix (str, optional): Text to append to the file 
             name, after the text title. Defaults to '_df'.
-        nodate (bool, optional): Whether or not to append the date and 
-            time to the file name. Defaults to True.
+        date (bool, optional): Whether or not to append the date and 
+            time to the file name. Defaults to False.
 
     Returns:
         err_code (int): Non-zero value indicateing error code, or zero 
@@ -154,22 +144,17 @@ def download_df(df_obj: pd.DataFrame, title: str,
         err_msg (str or None): Human readable error message, or None on 
             success.
     """
-    
-    
-    '''
-    INPUT: DataFrame object and suffix to add to output csv filename
-    '''
-    # TODO: get name of df_obj and use that in the file name
+
     camel_title = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
     if isinstance(df_obj, pd.DataFrame):
-        if nodate:
+        if not date:
             out_filename = camel_title.split('.')[0] + filename_suffix + ".csv"
         else:
             datetime_str = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
             out_filename = camel_title.split('.')[0] + '_' + filename_suffix + datetime_str + ".csv"
 
         completepath = os.path.join(save_filepath,out_filename)
-        df_obj.to_csv(uniquify(completepath), index=False)  # TODO: test
+        df_obj.to_csv(uniquify(completepath), index=False)
     else:
         raise TypeError('Expected pandas DataFrame as first argument; got ' + str(type(df_obj).__name__))
 
@@ -181,7 +166,7 @@ def upload_text(filepath: str) -> str:
         filepath (str): Filepath to txt file to upload
 
     Raises:
-        InputFormatException: If the file is not a .txt
+        ValueError: If the file is not a .txt file
 
     Returns:
         str: The imported raw text
@@ -189,19 +174,20 @@ def upload_text(filepath: str) -> str:
 
     filename_ext_str = filepath.split('.')[-1]
     if filename_ext_str == 'txt':
-        # raw_text_str = uploaded[novel_filename_str].decode(TEXT_ENCODING)
         with open(filepath,'r') as f:
             raw_text_str = f.read()
-            # TODO: figure out if decoding (using TEXT_ENCODING) would be useful here
+            # TODO: figure out if decoding (using TEXT_ENCODING) would
+            # be useful here. Probably use the chardet library to detect 
+            # the file's character encoding instead, if needed.
             return raw_text_str
     else:
-        raise InputFormatException("Must provide path to a plain text file (*.txt)")
-        # TODO: Decide whether to use exceptions or error codes & be consistent
+        raise ValueError("Must provide path to a plain text file (*.txt)")
 
      # return as single-item dict with title as key instead? or a custom "SAtext" object with data members title & body?
 
+# TODO: delete? AUGTODO
 def preview(something) -> str: # would make more sense as a method imo. could take in an SAtext object and be a method, or take in a dict to be able to print the file name
-    """Produce a string showing the beginning and end of the text
+    """Produce and print a string showing the beginning and end of the text.
     
     For use on a newly-created raw text string or cleaned text DataFrame
     for user verification.
@@ -218,90 +204,138 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
     # input can be a string or a df
     if type(something) == str:
         if len(something)<1000:
-            stringToPeep =     (f'  Length of text (in characters): {len(something)}\n' +
+            stringToView =     (f'  Length of text (in characters): {len(something)}\n' +
                                 f'Entire text: \n' +
                                 something)
-        stringToPeep =     (f'  Length of text (in characters): {len(something)}\n' +
+        stringToView =     (f'  Length of text (in characters): {len(something)}\n' +
                 '====================================\n\n' +
                 f'Beginning of text:\n\n {something[:500]}\n\n\n' +
                 '\n------------------------------------\n' +
                 f'End of text:\n\n {something[-500:]}\n\n\n')
     elif type(something) == pd.DataFrame:
         if len(something)<20: # TODO: test this comparison value is exactly correct
-            stringToPeep = ("Short dataframe. Here's the whole thing: \n" +
+            stringToView = ("Short dataframe. Here's the whole thing: \n" +
                             '\n'.join(something['cleaned_text'][0:9].astype(str)))
-        stringToPeep = "First 10 sentences:\n\n"
-        stringToPeep += '\n'.join(something['cleaned_text'][0:9].astype(str))
-        stringToPeep += "\n\n ... \n\n"
-        stringToPeep += "Last 10 sentences:\n\n"
-        stringToPeep += '\n'.join(something['cleaned_text'][-11:-1].astype(str))
+        stringToView = "First 10 sentences:\n\n"
+        stringToView += '\n'.join(something['cleaned_text'][0:9].astype(str))
+        stringToView += "\n\n ... \n\n"
+        stringToView += "Last 10 sentences:\n\n"
+        stringToView += '\n'.join(something['cleaned_text'][-11:-1].astype(str))
     else:
         TypeError("You may only preview a string or dataframe with a cleaned_text column")
-        stringToPeep = ""
+        stringToView = ""
         
-    stringToPeep += "\n\n"
-    print(stringToPeep) # TODO: remove all print statements (at end of package development)
-    return stringToPeep
+    stringToView += "\n\n"
+    print(stringToView) # TODO: remove all print statements (at end of package development)
+    return stringToView
 
-# TODO: clean up & test or remove
-# def gutenberg_import(title: str, Gutenberg_URL: str, 
-#                     sentence_first_str = None, sentence_last_str = None) -> str:
-#     #@title Enter the URL of your novel at ***gutenberg.net.au***
-#     #@markdown Paste the URL to the ***HTML version*** (not plain text).
-
-#     # title = 'Frankenstein by Mary Shelley'  #@param {type: "string"}
-
-#     # Gutenberg_URL = 'https://gutenberg.net.au/ebooks/z00006.html'  #@param {type: "string"}
-#     # the first sentence in the body of your novel: sentence_first_str
-#     # the last sentence in the body of your novel: sentence_last_str
-
-
-#     # Get raw HTML of novel from Gutenberg.net.au
-#     response=requests.get(Gutenberg_URL)  # TODO: Pass the URL to the .get() method of the requests object
-#     html = response.text
-
-#     # Use HTML <p> tags to extract text into list of paragraphs
-#     paragraphs = re.findall(r'<p>(.*?)</p>', html, flags=re.DOTALL)
-
-#     if (len(paragraphs) < 3):
-#         raise InputFormatException("Fewer than three paragraphs detected")
-
-#     # TODO: figure out what this is doing and why (seems like it's just undoing what we did, plus the \r\n replacement)
-#     # Concatenate all paragraphs into a single novel string
-#     # For every paragraph, replace each hardcoded \r\n with a single space
-#     paragraphs_flat = [re.sub(r'\r\n', ' ', paragraph) for paragraph in paragraphs]
-#     # Concatenate all paragraphs into single strings separated by two \n
-#     raw_text_str = '\n\n'.join(paragraphs_flat)
+def gutenberg_import_to_raw_text(gutenberg_url: str, 
+                                 sentence_first_str = None, 
+                                 sentence_last_str = None) -> str:
+    """Import a raw text novel from Gutenberg.net.au
     
-#     if (sentence_first_str is not None  and  sentence_last_str is not None): # using optional function args
-#         # Remove header
-#         raw_text_str = ' '.join(raw_text_str.partition(sentence_first_str)[1:])
-#         # Remove footer
-#         raw_text_str = ' '.join(raw_text_str.partition(sentence_last_str)[:2])
+    Extracts a novel from Gutenberg.net.au, reformats it into a string
+    suited for input into other functions within this package,
+    and provides options to remove header and footer content.
+
+    Args:
+        gutenberg_url (str): The full URL of the novel on Gutenberg.net.au.
+        sentence_first_str (str, optional): A string that marks the 
+            beginning of the relevant content to be extracted. Defaults 
+            to None.
+        sentence_last_str (str, optional): A string that marks the end
+            of the relevant content to be extracted. Defaults to None.
+
+    Raises:
+        ValueError: Raised if fewer than three paragraphs are detected 
+            in the novel.
+
+    Returns:
+        str: The reformatted raw text content of the novel, potentially 
+            with header and footer removed.
+    """
     
-#     return(raw_text_str)
+    import requests
+
+    # Get raw HTML of novel from Gutenberg.net.au
+    response = requests.get(gutenberg_url)
+    html = response.text
+
+    # Use HTML <p> tags to extract text into list of paragraphs
+    paragraphs = re.findall(r'<p>(.*?)</p>', html, flags=re.DOTALL)
+
+    if (len(paragraphs) < 20):
+        raise ValueError("Fewer than 20 paragraphs detected. Check the input URL. "
+                         "If the issue appears to be with the HTML formatting on the Gutenberg site, "
+                         "you must format and import the text without using this "
+                         "function (gutenberg_import_to_raw_text()).")
+
+    # For every paragraph, replace each hardcoded \r and \n with a single space
+    paragraphs_flat = [re.sub(r'\r', ' ', paragraph) for paragraph in paragraphs]
+    paragraphs_flat = [re.sub(r'\n', ' ', paragraph) for paragraph in paragraphs_flat]
+    paragraphs_flat = [' '.join(paragraph.split()) for paragraph in paragraphs_flat] # remove leading, trailing, and *repeated* spaces
+   
+    # Join all paragraphs into a single string. Separate paragraphs with
+    # two newline characters. (Expected raw text format for other
+    # functions in this package.)
+    raw_text_str = '\n\n'.join(paragraphs_flat)
+    
+    # Use optional function args
+    # Remove header
+    if sentence_first_str is not None:
+        raw_text_str = ' '.join(raw_text_str.partition(sentence_first_str)[1:])
+    # Remove footer
+    if sentence_last_str is not None:
+        raw_text_str = ' '.join(raw_text_str.partition(sentence_last_str)[:2])
+    
+    return(raw_text_str)
 
 
-def segment_sentences(raw_text_str:  str) -> list:
+def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
+    """Segment raw text into a list of sentences.
+    
+    Use the given (or default) paragraph separator to separate a string
+    into paragraphs and then sentences. Includes some string cleaning 
+    steps.
+
+    Args:
+        raw_text_str (str): The input raw text to be segmented into 
+            sentences.
+        para_sep (str, optional): A regular expression specifying the 
+            paragraph separator. Defaults to r'\n{2,}'.
+
+    Raises:
+        ValueError: Raised if fewer than 5 paragraphs are detected.
+            Indicates raw_text_str formatting that does not match the
+            para_sep argument's value.
+
+    Returns:
+        List[str]: A list of segmented sentences from the input raw text.
+    """
     
     ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' /ELLIPSIS/ ', raw_text_str)
     
-    parags_ls = re.split(r'\n{2,}', ellipses_replaced_text) # Split text into paragraphs
+    parags_ls = re.split(para_sep, ellipses_replaced_text) # Split text into paragraphs
     
-    # Random cleanup stuff
+    if len(parags_ls) < 5:
+        raise ValueError("Fewer than 5 paragraphs detected. Are paragraphs in "
+                         "the raw text string separated by " + para_sep + "? "
+                         "If not, specify the para_sep argument.")
+    
+    # Miscellaneous cleanup
     parags_ls = [x.replace('”“','” “') for x in parags_ls]
     
     # Clean up miscellaneous line breaks and spaces
     parags_ls = [x.replace('\n', ' ') for x in parags_ls] # remove single line breaks
     parags_ls = [x.replace('\r', ' ') for x in parags_ls] # remove single line breaks
     parags_ls = [' '.join(x.split()) for x in parags_ls] # remove leading, trailing, and *repeated* spaces
-
      
     # Add custom rules for spacy
     from spacy.language import Language
 
     def beginning_of_quote_component_func(doc):
-        # Fixes issue where a beginning quotation mark was being treated as a separate sentence from the rest of the quote
+        # Fixes issue where a beginning quotation mark was being treated 
+        # as a separate sentence from the rest of the quote
         for i, token in enumerate(doc[:-1]):
             openingQuotes = ['“','"']
             if token.text in openingQuotes and doc[i + 1].is_alpha and doc[i + 1].text[0].isupper:
@@ -366,6 +400,10 @@ def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -
 
     Args:
         dirty_str (str): A raw string
+        lowercase (bool): Whether to convert the text to lowercase.
+            Defaults to True.
+        expand_contractions (bool): Whether to expand contractions into
+        separate words. Defaults to True.
 
     Returns:
         str: A cleaned string
@@ -407,7 +445,8 @@ def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -
     return clean_str 
 
 
-def create_clean_df(sentences_list: list[str], title: str, save = False, save_filepath = CURRENT_DIR) -> pd.DataFrame:
+def create_clean_df(sentences_list: list[str], title = "SentimentText", 
+                    save = False, save_filepath = CURRENT_DIR) -> pd.DataFrame:
     """Create DataFrame of raw and cleaned sentences
 
     From a list of sentences, create a DataFrame with columns 
@@ -415,7 +454,8 @@ def create_clean_df(sentences_list: list[str], title: str, save = False, save_fi
     
     Args:
         sentences_list (list of strings): A list of sentences.
-        title (str): The text title
+        title (str, optional): The text title. Specify this if save =
+            True. Defaults to "SentimentText."
         save (bool, optional): Whether to save the DataFrame (as a csv). 
             Defaults to False.
         save_filepath (str, optional): Where to save the DataFrame. 
@@ -423,8 +463,8 @@ def create_clean_df(sentences_list: list[str], title: str, save = False, save_fi
 
     Returns:
         pd.DataFrame: A DataFrame with columns 'sentence_num', 
-            'text_raw', 'cleaned_text', and 'cleaned_text_len', intended to be
-            passed to a sentiment analysis model function
+            'text_raw', 'cleaned_text', and 'cleaned_text_len' intended 
+            to be passed to a sentiment analysis model function
     """
     
     # Create sentiment_df to hold text sentences and corresponding
@@ -433,9 +473,8 @@ def create_clean_df(sentences_list: list[str], title: str, save = False, save_fi
     sentiment_df['text_raw'] = sentiment_df['text_raw'].astype('string')
     sentiment_df['text_raw'] = sentiment_df['text_raw'].str.strip()
 
-    # clean the 'text_raw' column and create the 'cleaned_text' column
-    # novel_df['cleaned_text'] = hero.clean(novel_df['text_raw'])
-    sentiment_df['cleaned_text'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x)) # call clean_str()
+    # Clean the 'text_raw' column and create the 'cleaned_text' column
+    sentiment_df['cleaned_text'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x)) # call clean_string(), defined above
     sentiment_df['text_raw_len'] = sentiment_df['text_raw'].apply(lambda x: len(x))
     sentiment_df['cleaned_text_len'] = sentiment_df['cleaned_text'].apply(lambda x: len(x))
 
@@ -453,36 +492,39 @@ def create_clean_df(sentences_list: list[str], title: str, save = False, save_fi
     sentiment_df.insert(0, 'sentence_num', sentence_nums)
 
     if save:
-        download_df(sentiment_df, title, save_filepath=save_filepath, filename_suffix='_cleaned')
+        download_df(sentiment_df, title, save_filepath=save_filepath, filename_suffix='_clean')
     
     return sentiment_df
 
 
-def preprocess_text(raw_text_str: str, title: str, save = False, save_filepath = CURRENT_DIR)  -> pd.DataFrame:
+def preprocess_text(raw_text_str: str, para_sep: str = r'\n{2,}', title = "SentimentText", save = False, save_filepath = CURRENT_DIR)  -> pd.DataFrame:
     """Turn raw text string into clean text DataFrame ready for analysis
 
     Args:
-        raw_text_str (str): The raw text
-        title (str): The text title
-        save (bool, optional): Whether to save the DataFrame. Defaults 
-            to False.
-        save_filepath (str, optional): Where to save the DataFrame. 
-            Defaults to CURRENT_DIR.
+        raw_text_str (str): A single string with paragraphs separated by 
+            para_sep.
+        para_sep (str): A regular expression specifying the paragraph 
+            separator. Defaults to r'\n{2,}' (two newline characters).
+        title (str): The title of the text. Specify this if save =
+            True. Defaults to "SentimentText." 
+        save (bool, optional): Whether to download the resulting 
+            DataFrame (as a csv). Defaults to False.
+        save_filepath (str, optional): Where to download the DataFrame. 
+            Defaults to the current working directory.
 
     Returns:
         pd.DataFrame: A DataFrame with columns 'sentence_num', 
-            'text_raw', 'cleaned_text', and 'cleaned_text_len', intended to be
-            passed to a sentiment analysis model function
+            'text_raw', 'cleaned_text', and 'cleaned_text_len' intended 
+            to be passed to a sentiment analysis model function
     """
-    sentences_list = segment_sentences(raw_text_str)
+    sentences_list = segment_sentences(raw_text_str, para_sep)
     clean_df = create_clean_df(sentences_list, title, save, save_filepath)
     return clean_df
 
-
 def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
     # TODO: remove title from each of these models' params. Not doing
-    # now bc not backwards compatible (Dev's code will break)
-    print("vader")
+    # now bc not backwards compatible (Dev's website code will break). AUGTODO
+    print("Running VADER sentiment analysis")
     """ Run the vader sentiment analysis model.
 
     Run vader on the cleaned_text column of the passed DataFrame, and 
@@ -508,7 +550,7 @@ def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
 
 
 def textblob(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
-    print("textblob")
+    print("Running TextBlob sentiment analysis")
     from textblob import TextBlob
     sentiment_textblob_ls = [TextBlob(asentence).polarity for asentence in sentiment_df['cleaned_text'].to_list()]
         # From TextBlob docs: The sentiment property returns a named 
@@ -543,7 +585,7 @@ class SimpleDataset:
         
         
 def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
-    print("distilbert")
+    print("Running DistilBERT sentiment analysis")
     # Some of these might be needed in other transformer models to be added later (TODO)
     from transformers import AutoTokenizer #, AutoModelWithLMHead  # T5Base 50k
     from transformers import AutoModelForSequenceClassification, Trainer
@@ -593,6 +635,8 @@ def sentimentr(sentiment_df: pd.DataFrame, title: str):
     #    'sentimentr_sentiword','sentimentr_loughran_mcdonald',
     #    'sentimentr_socal_google'
     
+    print("Running all SentimentR lexicons' sentiment analyses")
+    
     import rpy2.robjects as robjects
     r = robjects.r
     r_file_path = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'run_sentimentr.R')
@@ -613,7 +657,6 @@ def sentimentr(sentiment_df: pd.DataFrame, title: str):
 # currently.) Should we keep it in case people decide they want to run &
 # compare more models later?
 def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.DataFrame:
-    print("combine_model_results")
     # TODO: make these named params instead of freeform? as a check.
     '''
     Optional named args: vader = vader_df, textblob = textblob_df, 
