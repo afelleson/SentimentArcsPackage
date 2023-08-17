@@ -281,16 +281,6 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
     
 #     return(raw_text_str)
 
-def replace_ellipses(raw_text_str:  str) -> str:
-    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' <ELLIPSIS> ', raw_text_str)
-    # change mid-sentence ellipses to commas 
-    
-    
-    # and change end-of-sentence ellipses (including ones before a line break!) to periods
-    # How to deal with mid sentence ellipsis before a proper noun? I was thinking it’d be good enough to replace them with a period.
-    # If there’s only one word before the ellipsis, make it a comma. Otherwise, a period is fine.
-    # If sentence or quote begins with ellipsis, just remove the ellipsis.
-
 
 def segment_sentences(raw_text_str:  str) -> list:
     
@@ -384,7 +374,7 @@ def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -
     # Replace ellipses
     mid_cleaning_str = re.sub(r'^ \. \. \.', r'', dirty_str) # If sentence begins with an ellipsis, remove the ellipsis.
     mid_cleaning_str = re.sub(r'^("|“) \. \. \.', r'', mid_cleaning_str) # If quote begins with an ellipsis, remove the ellipsis.
-    mid_cleaning_str = re.sub(r' \. \. \.', r',', mid_cleaning_str) # Replace ellipses with commas
+    mid_cleaning_str = re.sub(r' \. \. \.', r',', mid_cleaning_str) # Replace remaining ellipses with commas
     
     # Expand contractions
     if expand_contractions:
