@@ -1,6 +1,6 @@
 [imports]
 paragraph_separation = \n{2,}
-section_separation = \n\nsection \S*?\n\n
+section_separation = \n\n[Ss]ection \S*?\n\n
 text_encoding = utf-8
 
 [cleaning]

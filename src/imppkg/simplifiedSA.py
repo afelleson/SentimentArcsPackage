@@ -65,16 +65,8 @@ CURRENT_DIR = os.getcwd()
 # TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function and making a SAobject that has title as a member datum.
 ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert', 'sentimentr',
                    ]
-        # TODO: add nlptown and roberta15lg after figuring out how to
-        # source more compute power.
-        # Note: sentimentR lexicons not included right now =
-        # emojis_sentiment, hash_sentiment_emojis, and
-        # hash_sentiment_slangsd.
-        # 'sentimentr' runs lexicons 'sentimentr_jockersrinker',
-        # 'sentimentr_jockers', 'sentimentr_huliu','sentimentr_nrc',
-        # 'sentimentr_senticnet', 'sentimentr_sentiword',
-        # 'sentimentr_loughran_mcdonald', 
-        # 'hash_sentiment_loughran_mcdonald', 'sentimentr_socal_google'
+        # TODO: add nlptown and roberta15lg (from simplified notebook) 
+        # after figuring out how to source more compute power.
 
 
 ### FUNCTIONS ###
@@ -160,7 +152,7 @@ def download_df(df_obj: pd.DataFrame, title: str,
 
 
 def upload_text(filepath: str) -> str:
-    """Upload text from a raw text file into a string
+    """Upload text from a raw text file into a string.
 
     Args:
         filepath (str): Filepath to txt file to upload
@@ -181,7 +173,7 @@ def upload_text(filepath: str) -> str:
             # the file's character encoding instead, if needed.
             return raw_text_str
     else:
-        raise ValueError("Must provide path to a plain text file (*.txt)")
+        raise ValueError("Must provide path to a plain text file (.txt)")
 
      # return as single-item dict with title as key instead? or a custom "SAtext" object with data members title & body?
 
@@ -232,7 +224,7 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
 def gutenberg_import_to_raw_text(gutenberg_url: str, 
                                  sentence_first_str = None, 
                                  sentence_last_str = None) -> str:
-    """Import a raw text novel from Gutenberg.net.au
+    """Import a raw text novel from Gutenberg.net.au.
     
     Extracts a novel from Gutenberg.net.au, reformats it into a string
     suited for input into other functions within this package,
@@ -445,7 +437,9 @@ def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -
     return clean_str 
 
 
-def create_clean_df(sentences_list: list[str], title = "SentimentText", 
+def create_clean_df(sentences_list: list[str], 
+                    lowercase = True, expand_contractions = True, 
+                    title = "SentimentText", 
                     save = False, save_filepath = CURRENT_DIR) -> pd.DataFrame:
     """Create DataFrame of raw and cleaned sentences
 
@@ -474,7 +468,7 @@ def create_clean_df(sentences_list: list[str], title = "SentimentText",
     sentiment_df['text_raw'] = sentiment_df['text_raw'].str.strip()
 
     # Clean the 'text_raw' column and create the 'cleaned_text' column
-    sentiment_df['cleaned_text'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x)) # call clean_string(), defined above
+    sentiment_df['cleaned_text'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x,lowercase = lowercase, expand_contractions = expand_contractions)) # call clean_string(), defined above
     sentiment_df['text_raw_len'] = sentiment_df['text_raw'].apply(lambda x: len(x))
     sentiment_df['cleaned_text_len'] = sentiment_df['cleaned_text'].apply(lambda x: len(x))
 
@@ -497,7 +491,10 @@ def create_clean_df(sentences_list: list[str], title = "SentimentText",
     return sentiment_df
 
 
-def preprocess_text(raw_text_str: str, para_sep: str = r'\n{2,}', title = "SentimentText", save = False, save_filepath = CURRENT_DIR)  -> pd.DataFrame:
+def preprocess_text(raw_text_str: str, para_sep: str = r'\n{2,}', 
+                    lowercase = True, expand_contractions = True,
+                    title = "SentimentText", save = False, 
+                    save_filepath = CURRENT_DIR)  -> pd.DataFrame:
     """Turn raw text string into clean text DataFrame ready for analysis
 
     Args:
@@ -518,27 +515,39 @@ def preprocess_text(raw_text_str: str, para_sep: str = r'\n{2,}', title = "Senti
             to be passed to a sentiment analysis model function
     """
     sentences_list = segment_sentences(raw_text_str, para_sep)
-    clean_df = create_clean_df(sentences_list, title, save, save_filepath)
+    clean_df = create_clean_df(sentences_list, 
+                               lowercase = lowercase, expand_contractions = expand_contractions, 
+                               title=title, save=save, save_filepath=save_filepath)
     return clean_df
 
-def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
+def vader(sentiment_df: pd.DataFrame, title = "") ->  pd.DataFrame:
     # TODO: remove title from each of these models' params. Not doing
     # now bc not backwards compatible (Dev's website code will break). AUGTODO
-    print("Running VADER sentiment analysis")
-    """ Run the vader sentiment analysis model.
+    """Run VADER sentiment analysis.
 
-    Run vader on the cleaned_text column of the passed DataFrame, and 
+    Run VADER on the cleaned_text column of the passed DataFrame and 
         create a new DataFrame with an appended 'sentiment' column.
+        For more details on VADER sentiment analysis, see 
+        https://vadersentiment.readthedocs.io.
         
     Args:
         sentiment_df (pd.DataFrame): A DataFrame with 'sentence_num', 
             'text_raw', and 'text_cleaned' columns.
 
     Returns:
-        pd.DataFrame: 
+        pd.DataFrame: A DataFrame with 'sentence_num', 'text_raw', 
+            'text_cleaned', and 'sentiment' columns, where the last
+            column contains the VADER compound score (a number between
+            -1 and 1) for each sentence.
     """
+    # Note: The sentiment model functions create new DataFrames (instead 
+    #   of adding a column to the DataFrame passed as an argument) in
+    #   order to allow users to run multiple sentiment analysis models 
+    #   in parallel
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
     sid_obj = SentimentIntensityAnalyzer()
+    
+    print("Running VADER sentiment analysis")
     sentiment_vader_ls = [sid_obj.polarity_scores(asentence)['compound'] for asentence in sentiment_df['cleaned_text'].to_list()]
     
     # Create new VADER DataFrame to save results
@@ -546,26 +555,35 @@ def vader(sentiment_df: pd.DataFrame, title: str) ->  pd.DataFrame:
     vader_df['sentiment'] = pd.Series(sentiment_vader_ls) 
         
     return vader_df
-    # TODO: consider just appending these results to sentiment_df, and if someone wants the vader data only, they can subset that df. This would eliminate the need for combine_all_results or whatever in the main pipeline
-
 
 def textblob(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
-    print("Running TextBlob sentiment analysis")
+    """Run TextBlob sentiment analysis.
+
+    Run TextBlob on the cleaned_text column of the passed DataFrame and 
+        create a new DataFrame with appended 'sentiment' and
+        'subjectivity' columns. For more details on TextBlob sentiment 
+        analysis, see https://textblob.readthedocs.io.
+        
+    Args:
+        sentiment_df (pd.DataFrame): A DataFrame with 'sentence_num', 
+            'text_raw', and 'text_cleaned' columns.
+
+    Returns:
+        pd.DataFrame: A DataFrame with 'sentence_num', 'text_raw', 
+            'text_cleaned', 'sentiment', and 'subjectivity' columns, 
+            where the last two columns contain the TextBlob polarity and
+            subjectivity scores, respectively, for each sentence.  The 
+            polarity score is a float within the range [-1.0, 1.0]. The 
+            subjectivity is a float within  the range [0.0, 1.0], where 
+            0.0 is very objective and 1.0 is very subjective.
+    """
     from textblob import TextBlob
-    sentiment_textblob_ls = [TextBlob(asentence).polarity for asentence in sentiment_df['cleaned_text'].to_list()]
-        # From TextBlob docs: The sentiment property returns a named 
-        # tuple of the form Sentiment(polarity, subjectivity). 
-        # The polarity score is a float within the range [-1.0, 1.0]. 
-        # The subjectivity is a float within  the range [0.0, 1.0], 
-        # where 0.0 is very objective and 1.0 is very subjective.
-    # sentiment_df['sentiment'] = sentiment_df['cleaned_text'].apply(lambda x : TextBlob(x).sentiment.polarity) # add textblob column to sentiment_df
     
-    # change this to be sentiment instead of polarity for the new method
+    print("Running TextBlob sentiment analysis")
     sentiment_textblob_ls = [TextBlob(asentence).sentiment for asentence in sentiment_df['cleaned_text'].to_list()]
+    
     # Create new TextBlob DataFrame to save results
     textblob_df = sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
-    # textblob_df['sentiment'] = pd.Series(sentiment_textblob_ls) #old
-    # new
     textblob_df['sentiment'] = pd.Series([x.polarity for x in sentiment_textblob_ls]) 
     textblob_df['subjectivity'] = pd.Series([x.subjectivity for x in sentiment_textblob_ls]) 
     
@@ -582,81 +600,135 @@ class SimpleDataset:
     
     def __getitem__(self, idx):
         return {k: v[idx] for k, v in self.tokenized_texts.items()}
+
+def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
+    """Run DistilBERT sentiment analysis.
+
+    Run the "DistilBERT base uncased finetuned SST-2" model on the 
+        cleaned_text column of the passed DataFrame and create a new 
+        DataFrame with appended 'sentiment', 'label', 'score', and
+        'adjusted_sentiment' columns. For more details on DistilBERT 
+        sentiment analysis, see
+        https://huggingface.co/docs/transformers/model_doc/distilbert 
+        and
+        https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english.
         
         
-def distilbert(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
-    print("Running DistilBERT sentiment analysis")
-    # Some of these might be needed in other transformer models to be added later (TODO)
+    Args:
+        sentiment_df (pd.DataFrame): A DataFrame with 'sentence_num', 
+            'text_raw', and 'text_cleaned' columns.
+
+    Returns:
+        pd.DataFrame: A DataFrame with 'sentence_num', 'text_raw', 
+            'text_cleaned', 'sentiment', 'label', and 'score' columns, 
+            where the last three columns contain the DistilBERT analysis
+            results for each sentence. The 'sentiment' is a binary 0 or 
+            1, representing 'positive' and 'negative' sentiments, 
+            respectively. Those verbal labels are included in the 
+            'label' column. The 'score' for each sentence reflects the 
+            model's confidence or certainty in its label/sentiment 
+            assignment. 
+    """
     from transformers import AutoTokenizer #, AutoModelWithLMHead  # T5Base 50k
     from transformers import AutoModelForSequenceClassification, Trainer
+    # Some of these imports might be needed in other transformer models to be added later (TODO)
     # from transformers import pipeline
     # from transformers import AutoModelForSeq2SeqLM, AutoModelWithLMHead
     # from transformers import BertTokenizer, BertForSequenceClassification
     # import sentencepiece
     
+    print("Running DistilBERT sentiment analysis")
     # Load tokenizer and model, create trainer
     model_name = "distilbert-base-uncased-finetuned-sst-2-english" # Note: use a cased model for German
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     trainer = Trainer(model=model)
 
-    # (there was a test here i don't think was necessary to run, so it's just in the test file)
-
     # Compute Sentiment Time Series
-    line_ls = sentiment_df['cleaned_text'].to_list()
+    clean_sentences_list = sentiment_df['cleaned_text'].to_list()
 
     # Tokenize texts and create prediction data set
-    tokenized_texts = tokenizer(line_ls,truncation=True,padding=True)
+    tokenized_texts = tokenizer(clean_sentences_list,truncation=True,padding=True)
     pred_dataset = SimpleDataset(tokenized_texts)
 
     # Run predictions
     prediction_results = trainer.predict(pred_dataset)
 
-    # Transform predictions to labels
-    sentiment_ls = np.argmax(prediction_results.predictions, axis=-1) # used to be prediction_results.predictions.argmax(-1)
-    labels_ls = pd.Series(sentiment_ls).map(model.config.id2label)
+    # Transform sentiment predictions to labels
+    sentiment_ls = np.argmax(prediction_results.predictions, axis=-1)
+    labels_ls = pd.Series(sentiment_ls).map(model.config.id2label) # 0 sentiment -> NEGATIVE; 1 sentiment -> POSTIVE
+    
+    # Calculate normalized scores (representing model confidence) using softmax and select the maximum score
     scores_ls = (np.exp(prediction_results[0])/np.exp(prediction_results[0]).sum(-1,keepdims=True)).max(1)
+    
+    # Calculate adjusted sentiment scores based on score and positive/negative label
+    adjusted_scores_ls = scores_ls * np.where(sentiment_ls == 1, 1, -1)
 
-    # Create DataFrame with texts, predictions, labels, and scores
-    sentence_num_ls = list(range(len(sentiment_ls)))
-    distilbert_df = pd.DataFrame(list(zip(sentence_num_ls, line_ls,sentiment_ls,labels_ls,scores_ls)), columns=['sentence_num','line','sentiment','label','score'])
-        # TODO: ask what these mean! the 'sentiment' column is just 0s and 1s; is that what we want?
-
-    # TODO: decide where to put this
-    # Ensure balance of sentiments
-    # distilbert_df['distilbert'].unique()
-    # _ = distilbert_df['label'].hist()
+    # Create DataFrame with texts, predictions, labels, scores, and adjusted sentiments
+    results_df = pd.DataFrame(list(zip(sentiment_ls, labels_ls, scores_ls, adjusted_scores_ls)),
+                               columns=['sentiment', 'label', 'score', 'adjusted_sentiment'])
+    # Concatenate the calculated data DataFrame with the original distilbert_df
+    distilbert_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), results_df], axis=1)
 
     return distilbert_df
 
-def sentimentr(sentiment_df: pd.DataFrame, title: str):
-    # 'sentimentr_jockersrinker','sentimentr_jockers',
-    #    'sentimentr_huliu','sentimentr_nrc','sentimentr_senticnet',
-    #    'sentimentr_sentiword','sentimentr_loughran_mcdonald',
-    #    'sentimentr_socal_google'
+def sentimentr(sentiment_df: pd.DataFrame, title = ""):
+    """Run SentimentR sentiment analysis.
+
+    Use the SentimentR library in R to run a variety of lexical
+    sentiment analysis models on the text.        
+        
+    Args:
+        sentiment_df (pd.DataFrame): A DataFrame with 'sentence_num', 
+            'text_raw', and 'text_cleaned' columns.
+
+    Returns:
+        pd.DataFrame: A DataFrame with 'sentence_num', 'text_raw', 
+            'text_cleaned', 'sentimentr_jockersrinker', 
+            'sentimentr_jockers', 'sentimentr_huliu', 'sentimentr_nrc', 
+            'sentimentr_senticnet', 'sentimentr_sentiword', 
+            'sentimentr_loughran_mcdonald', and 
+            'sentimentr_socal_google' columns. Each sentiment score
+            column is named after the lexicon used by SentimentR to
+            assign sentiments to words and calculate a score for each
+            sentence.
+    """
+    # Note: The sentimentR lexicons not included right now are
+        # emojis_sentiment, hash_sentiment_emojis, and
+        # hash_sentiment_slangsd. Text is not being cleaned with those
+        # lexicons in mind.
     
-    print("Running all SentimentR lexicons' sentiment analyses")
+    print("Running sentiment analyses with all all SentimentR lexicons")
     
     import rpy2.robjects as robjects
     r = robjects.r
+    
+    # Import the R file with the code to be run
     r_file_path = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'run_sentimentr.R')
     r['source'](r_file_path)
-    get_sentimentr_rfunction = robjects.globalenv['get_sentimentr_values'] # note to self: if this doesn't work, you'll have to pass the restore function to the main one
     
-    sentences_vec = robjects.StrVector(sentiment_df['cleaned_text'].to_list()) # Convert Python List of Strings to a R character vector
+    # Import the get_sentimentr_values() function from the R code
+    get_sentimentr_rfunction = robjects.globalenv['get_sentimentr_values']
+    
+    # Convert the Python list of strings (cleaned sentences) to an R character vector
+    sentences_vec = robjects.StrVector(sentiment_df['cleaned_text'].to_list())
+
+    # Run the get_sentimentr_values() function from the R code, in R
     sentimentr_rdf = get_sentimentr_rfunction(sentences_vec)
 
-    # Convert rpy2.robjects.vectors.DataFrame to pandas.core.frame.DataFrame
+    # Convert the resulting rpy2.robjects.vectors.DataFrame to a pandas.DataFrame
     sentimentr_df = pd.DataFrame.from_dict({ key : np.asarray(sentimentr_rdf.rx2(key)) for key in sentimentr_rdf.names })
     
-    sentimentr_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), sentimentr_df.iloc[:,1:]], axis=1) # sentimentr_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), sentimentr_df.loc[:, sentimentr_df.columns!='text_clean']], axis=1)
+    # Append entire sentimentr_df except the text_clean column to the passed DataFrame
+    sentimentr_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), sentimentr_df.iloc[:,1:]], axis=1)
 
     return sentimentr_df
 
 # TODO: get rid of this function? (I think Dev's code relies on it,
-# currently.) Should we keep it in case people decide they want to run &
+# currently, but it's not actually necessary there.) 
+# Should we keep it in case people decide they want to run &
 # compare more models later?
-def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.DataFrame:
+def combine_model_results(sentiment_df: pd.DataFrame, title = "", **kwargs) -> pd.DataFrame:
     # TODO: make these named params instead of freeform? as a check.
     '''
     Optional named args: vader = vader_df, textblob = textblob_df, 
@@ -674,7 +746,7 @@ def combine_model_results(sentiment_df: pd.DataFrame, title, **kwargs) -> pd.Dat
     
     return all_sentiments_df
 
-def compute_sentiments(sentiment_df: pd.DataFrame, title: str, models = ALL_MODELS_LIST) -> pd.DataFrame:
+def compute_sentiments(sentiment_df: pd.DataFrame, title = "", models = ALL_MODELS_LIST) -> pd.DataFrame:
     """Run sentiment analysis model(s) on a given cleaned text DataFrame
 
     Args:
