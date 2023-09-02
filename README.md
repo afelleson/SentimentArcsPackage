@@ -3,3 +3,5 @@ This pacakge contains functions to run and produce results from an ensemble of s
 
 ## Installation 
 ```shell $ python -m pip install SentimentArcsPackage ```
+## Update
+```pip install --upgrade ~/SentimentArcsPackage ```
