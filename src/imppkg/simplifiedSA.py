@@ -410,7 +410,7 @@ def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -
     if expand_contractions:
         mid_cleaning_str = contractions.fix(mid_cleaning_str)
 
-    mid_cleaning_str = clean(mid_cleaning_str, # TODO: detemine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
+    mid_cleaning_str = clean(mid_cleaning_str, # TODO: Determine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
         fix_unicode=True,               # fix various unicode errors
         to_ascii=True,                  # transliterate to closest ASCII representation
         lower=lowercase,                # lowercase text
@@ -606,8 +606,8 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
 
     Run the "DistilBERT base uncased finetuned SST-2" model on the 
         cleaned_text column of the passed DataFrame and create a new 
-        DataFrame with appended 'sentiment', 'label', 'score', and
-        'adjusted_sentiment' columns. For more details on DistilBERT 
+        DataFrame with appended 'binary_sentiment', 'label', 'score', 
+        and 'sentiment' columns. For more details on DistilBERT 
         sentiment analysis, see
         https://huggingface.co/docs/transformers/model_doc/distilbert 
         and
@@ -620,14 +620,17 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
 
     Returns:
         pd.DataFrame: A DataFrame with 'sentence_num', 'text_raw', 
-            'text_cleaned', 'sentiment', 'label', and 'score' columns, 
-            where the last three columns contain the DistilBERT analysis
-            results for each sentence. The 'sentiment' is a binary 0 or 
-            1, representing 'positive' and 'negative' sentiments, 
-            respectively. Those verbal labels are included in the 
-            'label' column. The 'score' for each sentence reflects the 
-            model's confidence or certainty in its label/sentiment 
-            assignment. 
+            'text_cleaned', 'binary_sentiment', 'label', 'score', and 
+            'sentiment' columns, where the last four columns contain 
+            the DistilBERT analysis results for each sentence. 
+            'binary_sentiment' is a 0 or 1, representing 'positive' and
+            'negative' sentiments, respectively. Those verbal labels are 
+            given in the 'label' column. The 'score' for each sentence 
+            reflects the model's confidence or certainty in its
+            label/sentiment assignment. The 'sentiment' columns contains
+            an adjusted sentiment score between -1 and 1, which is equal
+            to the score, but negated for negatively labeld sentiments 
+            and positive for positive sentiments.
     """
     from transformers import AutoTokenizer #, AutoModelWithLMHead  # T5Base 50k
     from transformers import AutoModelForSequenceClassification, Trainer
@@ -666,7 +669,7 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
 
     # Create DataFrame with texts, predictions, labels, scores, and adjusted sentiments
     results_df = pd.DataFrame(list(zip(sentiment_ls, labels_ls, scores_ls, adjusted_scores_ls)),
-                               columns=['sentiment', 'label', 'score', 'adjusted_sentiment'])
+                               columns=['binary_sentiment', 'label', 'score', 'sentiment'])
     # Concatenate the calculated data DataFrame with the original distilbert_df
     distilbert_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), results_df], axis=1)
 
@@ -695,8 +698,8 @@ def sentimentr(sentiment_df: pd.DataFrame, title = ""):
     """
     # Note: The sentimentR lexicons not included right now are
         # emojis_sentiment, hash_sentiment_emojis, and
-        # hash_sentiment_slangsd. Text is not being cleaned with those
-        # lexicons in mind.
+        # hash_sentiment_slangsd beause the text is not being cleaned 
+        # with those lexicons in mind.
     
     print("Running sentiment analyses with all all SentimentR lexicons")
     
@@ -727,7 +730,10 @@ def sentimentr(sentiment_df: pd.DataFrame, title = ""):
 # TODO: get rid of this function? (I think Dev's code relies on it,
 # currently, but it's not actually necessary there.) 
 # Should we keep it in case people decide they want to run &
-# compare more models later?
+# compare more models later? -- No, because all it'd do is append a
+# column to a dataframe, which the user can do on their own. AUGTODO:
+# remove this function and pull request to the front end to stop using
+# it. 
 def combine_model_results(sentiment_df: pd.DataFrame, title = "", **kwargs) -> pd.DataFrame:
     # TODO: make these named params instead of freeform? as a check.
     '''
@@ -746,17 +752,19 @@ def combine_model_results(sentiment_df: pd.DataFrame, title = "", **kwargs) -> p
     
     return all_sentiments_df
 
+# AUGTODO remove title arg
 def compute_sentiments(sentiment_df: pd.DataFrame, title = "", models = ALL_MODELS_LIST) -> pd.DataFrame:
-    """Run sentiment analysis model(s) on a given cleaned text DataFrame
+    """Run sentiment analysis model(s) on a DataFrame of cleaned text.
 
     Args:
         sentiment_df (pd.DataFrame): A DataFrame with columns 
             'sentence_num', 'text_raw', and 'cleaned_text', where each
             row is a string (e.g., a sentence) to assign a sentiment to
-        title (str): The text title
+        title (str, optional): The text title. This argument is not
+            used.
         models (list of strings, optional): A list of the sentiment
             analysis models to be run, with lowercase titles. Defaults 
-            to ['vader', 'textblob', 'distilbert','sentimentr'].
+            to ['vader', 'textblob', 'distilbert', 'sentimentr'].
 
     Returns:
         pd.DataFrame: sentiment_df with appended columns named after
@@ -775,19 +783,24 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title = "", models = ALL_MODE
     for user_model in models:
         if user_model not in ALL_MODELS_LIST:
             print(f"Warning: {user_model} model not found in list of accepted models. Check your spelling.")
+            print(f"\nThe accepted models are:\n")
+            for model in ALL_MODELS_LIST:
+                print(model)
+                print("\n")
     return all_sentiments_df
 
 # This function works on a df containing multiple models, and it creates a new df with the same column names but new sentiment values.
 # TODO: Also create functions that allow the user to input a df with only one model's sentiment values and append adjusted & normalized sentiments as new columns on the same df, in case they want to compare different adjustments & smoothing methods for the same model.
+# TODO: make separate smoothing and plotting functions? to abstract within this one
 def plot_sentiments(all_sentiments_df: pd.DataFrame, 
-                        title: str, 
-                        models = ALL_MODELS_LIST,
-                        adjustments="normalizedZeroMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
-                        smoothing="sma",
-                        plot = "save",
-                        save_filepath=CURRENT_DIR, 
-                        window_pct = 10,
-                        ) -> pd.DataFrame:
+                    title: str, 
+                    models = ALL_MODELS_LIST, #TODO this isn't going to work with sentimentR right now
+                    adjustments="normalizedZeroMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
+                    smoothing="sma",
+                    plot = "save", # AUGTODO: change to save_plot and display_plot booleans
+                    save_filepath=CURRENT_DIR, 
+                    window_pct = 10,
+                    ) -> pd.DataFrame:
     """Save a .png plot of raw or adjusted sentiments from the selected models.
 
     Save a .png plot of raw, normed, or normed & adjusted sentiments 
@@ -809,9 +822,9 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             the scaled mean that woudld be computed by adjusting the 
             original scores so their range is exactly -1 to 1). Defaults
             to normalizedZeroMean.
-        smoothing (str): "sma" (simple moving average, aka sliding 
+        smoothing (str): "sma" for a simple moving average (aka sliding 
             window with window size determined by window_pct), "lowess"
-            (LOWESS smoothing using parameter = [TODO])
+            for LOWESS smoothing using parameter = [TODO]
         plot (str): "display", "save", "both", or "none"
         save_filepath (str): path (ending in '/') to the directory
             the resulting plot png should be stored in.
@@ -826,10 +839,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         TODO
 
     """
-    print("plot_sentiments")
     
+    if window_pct > 70 or window_pct <= 0:
+        raise ValueError("Window percentage must be between 0 and 70")
     if window_pct > 20 or window_pct < 1:
-        print("Warning: window percentage outside expected range (1-20%)")
+        print("Warning: window percentage outside expected range (1-20)")
     window_size = int(window_pct / 100 * all_sentiments_df.shape[0])
 
     camel_title = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
@@ -917,7 +931,8 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     #TODO: add lowess option
     # from statsmodels.nonparametric.smoothers_lowess import lowess
     # y=current_sentiment_arc_df[selected_model.value].values
-    # x=np.arange(current_sentiment_arc_df.shape[0]) # i think this is just sentence num?
+    # x=np.arange(current_sentiment_arc_df.shape[0]) # i think this is
+    # just the number of rows in the df
     # lowess(y, x, frac=1/30)[:,1].tolist()
 
 def find_cruxes(smoothed_sentiments_df: pd.DataFrame, 
