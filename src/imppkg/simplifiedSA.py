@@ -21,7 +21,7 @@ import pandas as pd # Not currently using modin (uses multiple cores for operati
 import matplotlib.pyplot as plt
 
 # For segmenting by sentence
-from pysbd.utils import PySBDFactory
+# from pysbd.utils import PySBDFactory # See comment on PySBDFactory line below.
 import spacy
 # Note: We are now using spacy/pysbd instead of nltk.
 # nltk_download_dir = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'my_nltk_dir')
@@ -354,6 +354,7 @@ def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
     # Create spacy sentence separation pipes
     nlp = spacy.blank('en')
     nlp.add_pipe('sentencizer')
+    # nlp.add_pipe(PySBDFactory(nlp)) # If you're going to use this, you need to require spacy>=2.0.0,<3.0.0 and change the other add_pipe() syntaxes back to how they were in the OG SentimentArcs code.
     nlp.add_pipe("beginning_of_quote_component") # custom rule
     nlp.add_pipe("sentence_ending_in_I_component") # custom rule
     
