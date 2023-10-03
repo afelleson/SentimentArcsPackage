@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 # For segmenting by sentence
 # from pysbd.utils import PySBDFactory # See comment on PySBDFactory line below.
 import spacy
-# Note: We are now using spacy/pysbd instead of nltk.
+# Note: We are now using spacy instead of nltk.
 # nltk_download_dir = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'my_nltk_dir')
 # import nltk
 # nltk.download('punkt', download_dir=nltk_download_dir)
@@ -354,30 +354,35 @@ def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
     # Create spacy sentence separation pipes
     nlp = spacy.blank('en')
     nlp.add_pipe('sentencizer')
-    # nlp.add_pipe(PySBDFactory(nlp)) # If you're going to use this, you need to require spacy>=2.0.0,<3.0.0 and change the other add_pipe() syntaxes back to how they were in the OG SentimentArcs code.
     nlp.add_pipe("beginning_of_quote_component") # custom rule
     nlp.add_pipe("sentence_ending_in_I_component") # custom rule
+    # nlp.add_pipe(PySBDFactory(nlp)) 
+        # If you're going to use this, you need to 
+        # require spacy>=2.0.0,<3.0.0 in setup.cfg and change the other 
+        # add_pipe() syntaxes back to how they were in the OG 
+        # SentimentArcs code so they're compatible with those version of 
+        # spaCy.
     
     sentences_list = []
     for para in parags_ls:
         
-        # Round 1: PySBD
+        # Round 1: spaCy
         doc = nlp(para)
-        para_sents_pysbd_list = list(doc.sents)
-        para_sents_pysbd_list = [str(x).strip() for x in para_sents_pysbd_list]  # Strip leading/trailing whitespace
+        para_sents_spacy_list = list(doc.sents)
+        para_sents_spacy_list = [str(x).strip() for x in para_sents_spacy_list]  # Strip leading/trailing whitespace
         
         # # Round 2: NLTK
             # On The Hunger Games, this only separates out opening
             # quotation marks and ellipses as their own sentences, which
             # is incorrect. End result is fine, but nltk is not adding
             # any beneficial functionality.
-        # para_sents_nltk_list = [sent_tokenize(sent) for sent in para_sents_pysbd_list]
+        # para_sents_nltk_list = [sent_tokenize(sent) for sent in para_sents_spacy_list]
         # import itertools
         # para_sents_nltk_list = list(itertools.chain.from_iterable(para_sents_nltk_list))  # Flatten the list
-        # # para_sents_nltk_list = sent_tokenize(para) # replacement for previous 3 lines if not using pysbd
+        # # para_sents_nltk_list = sent_tokenize(para) # replacement for previous 3 lines if not using spaCy
         # para_sents_nltk_list = [str(x).strip() for x in para_sents_nltk_list] # Strip leading/trailing whitespace
 
-        ellipses_rereplaced_para_sents = [re.sub(r' /ELLIPSIS/ ”', r' . . .”', x) for x in para_sents_pysbd_list]
+        ellipses_rereplaced_para_sents = [re.sub(r' /ELLIPSIS/ ”', r' . . .”', x) for x in para_sents_spacy_list]
         ellipses_rereplaced_para_sents = [re.sub(r' /ELLIPSIS/ ', r' . . . ', x) for x in ellipses_rereplaced_para_sents]
         para_sents_list = [x for x in ellipses_rereplaced_para_sents if (len(x) > 1)] # Remove empty and 1-character sentences
         para_sents_list = [x for x in para_sents_list if re.search('[a-zA-Z]', x)] # Remove sentences without any alphabetic characters
@@ -660,7 +665,7 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
 
     # Transform sentiment predictions to labels
     sentiment_ls = np.argmax(prediction_results.predictions, axis=-1)
-    labels_ls = pd.Series(sentiment_ls).map(model.config.id2label) # 0 sentiment -> NEGATIVE; 1 sentiment -> POSTIVE
+    labels_ls = pd.Series(sentiment_ls).map(model.config.id2label) # 0 sentiment = NEGATIVE; 1 sentiment = POSTIVE
     
     # Calculate normalized scores (representing model confidence) using softmax and select the maximum score
     scores_ls = (np.exp(prediction_results[0])/np.exp(prediction_results[0]).sum(-1,keepdims=True)).max(1)
