@@ -4,7 +4,7 @@ simplifiedSA.py
 [TODO: description]
 
 Version 1: Alex Felleson, August 2023
-Based on an ipynb by Jon Chun, Feb. 2023: https://github.com/jon-chun/sentimentarcs_simplified
+Based on an interactive python notebook by Jon Chun, Feb. 2023: https://github.com/jon-chun/sentimentarcs_simplified
 """
 
 # Standard library imports
@@ -21,9 +21,9 @@ import pandas as pd # Not currently using modin (uses multiple cores for operati
 import matplotlib.pyplot as plt
 
 # For segmenting by sentence
-# from pysbd.utils import PySBDFactory # See comment on PySBDFactory line below.
 import spacy
-# Note: We are now using spacy instead of nltk.
+# from pysbd.utils import PySBDFactory # See comment on PySBDFactory line below.
+# Note: We are now using spacy only instead of nltk.
 # nltk_download_dir = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'my_nltk_dir')
 # import nltk
 # nltk.download('punkt', download_dir=nltk_download_dir)
@@ -42,9 +42,9 @@ from sklearn.preprocessing import StandardScaler # TODO: figure out if necessary
 from scipy.signal import find_peaks
 
 
-# Read the toml file that contains settings that advanced users can edit
-# (via ??? TODO?)
+# Read the toml file that contains settings that advanced users can edit (via ???)
 # (Not currently using either of the imported global variables below)
+# AUGTODO: get rid of this stuff in final version, but keep here
 config = configparser.ConfigParser()
 def get_filepath_in_src_dir(filename: str) -> str:
     result = os.path.join(THIS_SOURCE_FILE_DIRECTORY, filename)
@@ -55,6 +55,7 @@ def get_filepath_in_src_dir(filename: str) -> str:
 config.read(get_filepath_in_src_dir('SA_settings.toml'))
 TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: Use the chardet library to detect the file's character encoding instead, probably
 PARA_SEP = config.get('imports', 'paragraph_separation').encode('unicode_escape') # :/ can't use cuz doesn't equal r'\n{2,}' and wasn't able to convert.
+
 # Set up matplotlib
 plt.rcParams["figure.figsize"] = (20,10)
 plt.rcParams["font.size"] = 22
@@ -62,11 +63,14 @@ plt.rcParams["font.size"] = 22
 
 # Global variables
 CURRENT_DIR = os.getcwd()
-# TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function and making a SAobject that has title as a member datum.
-ALL_MODELS_LIST = ['vader', 'textblob', 'distilbert', 'sentimentr',
+ALL_MODELS_LIST = ['vader', 
+                   'textblob', 
+                   'distilbert', 
+                   'sentimentr',
                    ]
         # TODO: add nlptown and roberta15lg (from simplified notebook) 
         # after figuring out how to source more compute power.
+# TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function or making a SAobject that has title as a member datum.
 
 
 ### FUNCTIONS ###
@@ -179,10 +183,10 @@ def upload_text(filepath: str) -> str:
 
 # TODO: delete? AUGTODO
 def preview(something) -> str: # would make more sense as a method imo. could take in an SAtext object and be a method, or take in a dict to be able to print the file name
-    """Produce and print a string showing the beginning and end of the text.
+    """Print the beginning and end of a string or dataframe.
     
-    For use on a newly-created raw text string or cleaned text DataFrame
-    for user verification.
+    For user verification of a newly-created raw text string or cleaned 
+    text DataFrame.
 
     Args:
         something (str or pd.DataFrame): The text to be previewed
@@ -221,7 +225,7 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
     print(stringToView) # TODO: remove all print statements (at end of package development)
     return stringToView
 
-def gutenberg_import_to_raw_text(gutenberg_url: str, 
+def gutenberg_import(gutenberg_url: str, 
                                  sentence_first_str = None, 
                                  sentence_last_str = None) -> str:
     """Import a raw text novel from Gutenberg.net.au.
@@ -260,7 +264,7 @@ def gutenberg_import_to_raw_text(gutenberg_url: str,
         raise ValueError("Fewer than 20 paragraphs detected. Check the input URL. "
                          "If the issue appears to be with the HTML formatting on the Gutenberg site, "
                          "you must format and import the text without using this "
-                         "function (gutenberg_import_to_raw_text()).")
+                         "function (gutenberg_import()).")
 
     # For every paragraph, replace each hardcoded \r and \n with a single space
     paragraphs_flat = [re.sub(r'\r', ' ', paragraph) for paragraph in paragraphs]
@@ -394,7 +398,7 @@ def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
 
 def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -> str:
     #TODO: add options, and add more functions in here that take care of stuff clean-text doesn't, like emoticons
-    """Clean a string
+    """Clean a string.
 
     Args:
         dirty_str (str): A raw string
@@ -447,7 +451,7 @@ def create_clean_df(sentences_list: list[str],
                     lowercase = True, expand_contractions = True, 
                     title = "SentimentText", 
                     save = False, save_filepath = CURRENT_DIR) -> pd.DataFrame:
-    """Create DataFrame of raw and cleaned sentences
+    """Create DataFrame of raw and cleaned sentences.
 
     From a list of sentences, create a DataFrame with columns 
     'text_raw', 'cleaned_text', and 'cleaned_text_len'.
@@ -501,7 +505,7 @@ def preprocess_text(raw_text_str: str, para_sep: str = r'\n{2,}',
                     lowercase = True, expand_contractions = True,
                     title = "SentimentText", save = False, 
                     save_filepath = CURRENT_DIR)  -> pd.DataFrame:
-    """Turn raw text string into clean text DataFrame ready for analysis
+    """Turn raw text string into clean text DataFrame ready for analysis.
 
     Args:
         raw_text_str (str): A single string with paragraphs separated by 
