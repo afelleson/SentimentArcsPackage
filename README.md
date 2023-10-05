@@ -1,5 +1,5 @@
 # SentArcs
-This pacakge contains functions to compare results from an ensemble of sentiment analysis models.
+A wrapper for comparing results from an ensemble of sentiment analysis models.
 
 ## Installation
 Download this GitHub repository as a .zip. Unzip it.
@@ -17,11 +17,22 @@ Import and use within a python script, say my_script.py:
 ```python
 import imppkg.simplifiedSA as SA
 
-etc etc
+def main():
+    with open('scollins_thehungergames1.txt', 'r') as file:
+        text = file.read()
+
+    sentiment_df = SA.preprocess_text(text)
+
+    textblob_df = SA.compute_sentiments(sentiment_df, models=["textblob"])
+
+    SA.download_df(textblob_df, title="The Hunger Games", filename_suffix='_textblob_sentiments')
+
+if __name__ == "__main__":
+    main()
 ```
 Then, in a console shell:
 ```shell
 python3 /path/to/my_script.py
 ```
 
-Or, import and use within an interactive python notebook in the interface of your choice (e.g., Google Colab, Anaconda).
+Or, import and use within an interactive python notebook through the interface of your choice (e.g., Google Colab, Anaconda) using the code in the main() function above.
