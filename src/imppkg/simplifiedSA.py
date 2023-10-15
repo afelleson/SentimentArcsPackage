@@ -3,8 +3,11 @@ simplifiedSA.py
 
 [TODO: description]
 
-Version 1: Alex Felleson, August 2023
-Based on an interactive python notebook by Jon Chun, Feb. 2023: https://github.com/jon-chun/sentimentarcs_simplified
+Version 1: Alex Felleson 2023
+Based on an interactive python notebook by Jon Chun, Feb. 2023, which
+can be found at https://github.com/jon-chun/sentimentarcs_simplified, 
+and the original SentimentArcs code (Jon Chun 2022): 
+https://github.com/jon-chun/sentimentarcs_notebooks.
 """
 
 import configparser
