@@ -15,17 +15,17 @@ $ pip install --upgrade /path/to/SentimentArcsPackage
 ## Usage
 Import and use within a python script, say my_script.py:
 ```python
-import imppkg.simplifiedSA as SA
+import imppkg as sa
 
 def main():
     with open('scollins_thehungergames1.txt', 'r') as file:
         text = file.read()
 
-    sentiment_df = SA.preprocess_text(text)
+    sentiment_df = sa.preprocess_text(text)
 
-    textblob_df = SA.compute_sentiments(sentiment_df, models=["textblob"])
+    textblob_df = sa.compute_sentiments(sentiment_df, models=["textblob"])
 
-    SA.download_df(textblob_df, title="The Hunger Games", filename_suffix='_textblob_sentiments')
+    sa.download_df(textblob_df, title="The Hunger Games", filename_suffix='_textblob_sentiments')
 
 if __name__ == "__main__":
     main()
