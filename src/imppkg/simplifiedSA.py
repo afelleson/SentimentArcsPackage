@@ -7,40 +7,24 @@ Version 1: Alex Felleson, August 2023
 Based on an interactive python notebook by Jon Chun, Feb. 2023: https://github.com/jon-chun/sentimentarcs_simplified
 """
 
-# Standard library imports
-import re
-import datetime
 import configparser
+import datetime
+import re
 import os
+
+import pandas as pd
+import spacy
+from cleantext import clean
+import contractions
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+
+# Note: Additional library imports are included within lesser-used 
+# functions to improve efficiency.
 
 THIS_SOURCE_FILE_PATH = os.path.abspath(__file__)
 THIS_SOURCE_FILE_DIRECTORY = os.path.dirname(THIS_SOURCE_FILE_PATH)
-
-import numpy as np
-import pandas as pd # Not currently using modin (uses multiple cores for operations on pandas dfs, so should be faster) because it uses an old version of pandas, forcing a reinstall of pandas, and may remove some functionality from df methods that we need here. Could reevaluate this choice in the future.
-import matplotlib.pyplot as plt
-
-# For segmenting by sentence
-import spacy
-# from pysbd.utils import PySBDFactory # See comment on PySBDFactory line below.
-# Note: We are now using spacy only instead of nltk.
-# nltk_download_dir = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'my_nltk_dir')
-# import nltk
-# nltk.download('punkt', download_dir=nltk_download_dir)
-# nltk.data.load(os.path.join(nltk_download_dir, 'tokenizers','punkt','english.pickle'))
-#     # Note: To support other langauges, add more nltk.data.load() commands like the one above; just change 'english' to the new language name
-# from nltk.tokenize import sent_tokenize
-
-# For text cleaning
-from cleantext import clean # TODO: remove dependency (clean-text library) if possible
-import contractions # TODO: remove dependency?
-
-# For timeseries normalizations
-from sklearn.preprocessing import StandardScaler # TODO: figure out if necessary or if you can do this manually
-
-# For peak detection
-from scipy.signal import find_peaks
-
 
 # Read the toml file that contains settings that advanced users can edit (via ???)
 # (Not currently using either of the imported global variables below)
@@ -54,7 +38,7 @@ def get_filepath_in_src_dir(filename: str) -> str:
         return result
 config.read(get_filepath_in_src_dir('SA_settings.toml'))
 TEXT_ENCODING = config.get('imports', 'text_encoding') # TODO: Use the chardet library to detect the file's character encoding instead, probably
-PARA_SEP = config.get('imports', 'paragraph_separation').encode('unicode_escape') # :/ can't use cuz doesn't equal r'\n{2,}' and wasn't able to convert.
+PARA_SEP = config.get('imports', 'paragraph_separation').encode('unicode_escape') # Can't use because this isn't equivalent to r'\n{2,}' :(
 
 # Set up matplotlib
 plt.rcParams["figure.figsize"] = (20,10)
@@ -114,9 +98,10 @@ def uniquify(path: str) -> str:
     return path
 
 def download_df(df_obj: pd.DataFrame, title: str, 
-                save_filepath=CURRENT_DIR, 
+                save_filepath = CURRENT_DIR, 
                 filename_suffix='_df', 
-                date=False):
+                date = False,
+                ):
     """Write DataFrame object to csv file.
 
     Save DataFrame as a csv file named after the text title + the given 
@@ -141,18 +126,21 @@ def download_df(df_obj: pd.DataFrame, title: str,
             success.
     """
 
-    camel_title = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
+    camel_title = ''.join([re.sub(r'[^\w\s]', '', x).capitalize() 
+                           for x in title.split()])
     if isinstance(df_obj, pd.DataFrame):
         if not date:
             out_filename = camel_title.split('.')[0] + filename_suffix + ".csv"
         else:
             datetime_str = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-            out_filename = camel_title.split('.')[0] + '_' + filename_suffix + datetime_str + ".csv"
+            out_filename = camel_title.split('.')[0] + '_' + filename_suffix \
+                + datetime_str + ".csv"
 
-        completepath = os.path.join(save_filepath,out_filename)
+        completepath = os.path.join(save_filepath, out_filename)
         df_obj.to_csv(uniquify(completepath), index=False)
     else:
-        raise TypeError('Expected pandas DataFrame as first argument; got ' + str(type(df_obj).__name__))
+        raise TypeError('Expected pandas DataFrame as first argument; got ' + \
+            str(type(df_obj).__name__))
 
 
 def upload_text(filepath: str) -> str:
@@ -170,7 +158,7 @@ def upload_text(filepath: str) -> str:
 
     filename_ext_str = filepath.split('.')[-1]
     if filename_ext_str == 'txt':
-        with open(filepath,'r') as f:
+        with open(filepath, 'r') as f:
             raw_text_str = f.read()
             # TODO: figure out if decoding (using TEXT_ENCODING) would
             # be useful here. Probably use the chardet library to detect 
@@ -226,8 +214,9 @@ def preview(something) -> str: # would make more sense as a method imo. could ta
     return stringToView
 
 def gutenberg_import(gutenberg_url: str, 
-                                 sentence_first_str = None, 
-                                 sentence_last_str = None) -> str:
+                     sentence_first_str = None, 
+                     sentence_last_str = None,
+                    ) -> str:
     """Import a raw text novel from Gutenberg.net.au.
     
     Extracts a novel from Gutenberg.net.au, reformats it into a string
@@ -266,10 +255,15 @@ def gutenberg_import(gutenberg_url: str,
                          "you must format and import the text without using this "
                          "function (gutenberg_import()).")
 
-    # For every paragraph, replace each hardcoded \r and \n with a single space
-    paragraphs_flat = [re.sub(r'\r', ' ', paragraph) for paragraph in paragraphs]
-    paragraphs_flat = [re.sub(r'\n', ' ', paragraph) for paragraph in paragraphs_flat]
-    paragraphs_flat = [' '.join(paragraph.split()) for paragraph in paragraphs_flat] # remove leading, trailing, and *repeated* spaces
+    # Within each paragraph, replace each hardcoded \r and \n with a 
+    # single space
+    paragraphs_flat = [re.sub(r'\r', ' ', paragraph) 
+                       for paragraph in paragraphs]
+    paragraphs_flat = [re.sub(r'\n', ' ', paragraph) 
+                       for paragraph in paragraphs_flat]
+    # Remove leading, trailing, and *repeated* spaces
+    paragraphs_flat = [' '.join(paragraph.split()) 
+                       for paragraph in paragraphs_flat]
    
     # Join all paragraphs into a single string. Separate paragraphs with
     # two newline characters. (Expected raw text format for other
@@ -287,7 +281,7 @@ def gutenberg_import(gutenberg_url: str,
     return(raw_text_str)
 
 
-def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
+def segment_sentences(raw_text_str:  str, para_sep=r'\n{2,}') -> list:
     """Segment raw text into a list of sentences.
     
     Use the given (or default) paragraph separator to separate a string
@@ -306,12 +300,16 @@ def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
             para_sep argument's value.
 
     Returns:
-        List[str]: A list of segmented sentences from the input raw text.
+        List[str]: A list of segmented sentences from the input raw 
+        text.
     """
     
-    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', ' /ELLIPSIS/ ', raw_text_str)
+    ellipses_replaced_text = re.sub(r'\. \. \.|\.\.\.|\…', 
+                                    ' /ELLIPSIS/ ', 
+                                    raw_text_str)
     
-    parags_ls = re.split(para_sep, ellipses_replaced_text) # Split text into paragraphs
+    # Split text into paragraphs
+    parags_ls = re.split(para_sep, ellipses_replaced_text)
     
     if len(parags_ls) < 5:
         raise ValueError("Fewer than 5 paragraphs detected. Are paragraphs in "
@@ -319,12 +317,15 @@ def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
                          "If not, specify the para_sep argument.")
     
     # Miscellaneous cleanup
-    parags_ls = [x.replace('”“','” “') for x in parags_ls]
+    parags_ls = [x.replace('”“', '” “') for x in parags_ls]
     
     # Clean up miscellaneous line breaks and spaces
-    parags_ls = [x.replace('\n', ' ') for x in parags_ls] # remove single line breaks
-    parags_ls = [x.replace('\r', ' ') for x in parags_ls] # remove single line breaks
-    parags_ls = [' '.join(x.split()) for x in parags_ls] # remove leading, trailing, and *repeated* spaces
+    # Remove single line breaks
+    parags_ls = [x.replace('\n', ' ') for x in parags_ls]
+    # Remove single line breaks
+    parags_ls = [x.replace('\r', ' ') for x in parags_ls]
+    # Remove leading, trailing, and *repeated* spaces
+    parags_ls = [' '.join(x.split()) for x in parags_ls]
      
     # Add custom rules for spacy
     from spacy.language import Language
@@ -333,8 +334,10 @@ def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
         # Fixes issue where a beginning quotation mark was being treated 
         # as a separate sentence from the rest of the quote
         for i, token in enumerate(doc[:-1]):
-            openingQuotes = ['“','"']
-            if token.text in openingQuotes and doc[i + 1].is_alpha and doc[i + 1].text[0].isupper:
+            openingQuotes = ['“', '"']
+            if (token.text in openingQuotes and 
+                    doc[i + 1].is_alpha and 
+                    doc[i + 1].text[0].isupper):
                 doc[i + 1].is_sent_start = False
                 doc[i].is_sent_start = True
         return doc
@@ -360,6 +363,8 @@ def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
     nlp.add_pipe('sentencizer')
     nlp.add_pipe("beginning_of_quote_component") # custom rule
     nlp.add_pipe("sentence_ending_in_I_component") # custom rule
+    
+    # from pysbd.utils import PySBDFactory
     # nlp.add_pipe(PySBDFactory(nlp)) 
         # If you're going to use this, you need to 
         # require spacy>=2.0.0,<3.0.0 in setup.cfg and change the other 
@@ -373,31 +378,55 @@ def segment_sentences(raw_text_str:  str, para_sep = r'\n{2,}') -> list:
         # Round 1: spaCy
         doc = nlp(para)
         para_sents_spacy_list = list(doc.sents)
-        para_sents_spacy_list = [str(x).strip() for x in para_sents_spacy_list]  # Strip leading/trailing whitespace
+        # Strip leading/trailing whitespace
+        para_sents_spacy_list = [str(x).strip() 
+                                 for x in para_sents_spacy_list]  
         
         # # Round 2: NLTK
             # On The Hunger Games, this only separates out opening
             # quotation marks and ellipses as their own sentences, which
-            # is incorrect. End result is fine, but nltk is not adding
-            # any beneficial functionality.
+            # is incorrect. The end result is fine, but nltk is not 
+            # adding any beneficial functionality. So we are now using 
+            # spaCy only instead of nltk.
+        # # Set up NLTK
+        # import nltk
+        # nltk_download_dir = os.path.join(THIS_SOURCE_FILE_DIRECTORY, 'my_nltk_dir')
+        # nltk.download('punkt', download_dir=nltk_download_dir)
+        # nltk.data.load(os.path.join(nltk_download_dir, 'tokenizers', 'punkt', 'english.pickle'))
+        #     # Note: To support other langauges, add more nltk.data.load() commands like the one above; just change 'english' to the new language name
+        # from nltk.tokenize import sent_tokenize
+
         # para_sents_nltk_list = [sent_tokenize(sent) for sent in para_sents_spacy_list]
         # import itertools
         # para_sents_nltk_list = list(itertools.chain.from_iterable(para_sents_nltk_list))  # Flatten the list
         # # para_sents_nltk_list = sent_tokenize(para) # replacement for previous 3 lines if not using spaCy
         # para_sents_nltk_list = [str(x).strip() for x in para_sents_nltk_list] # Strip leading/trailing whitespace
 
-        ellipses_rereplaced_para_sents = [re.sub(r' /ELLIPSIS/ ”', r' . . .”', x) for x in para_sents_spacy_list]
-        ellipses_rereplaced_para_sents = [re.sub(r' /ELLIPSIS/ ', r' . . . ', x) for x in ellipses_rereplaced_para_sents]
-        para_sents_list = [x for x in ellipses_rereplaced_para_sents if (len(x) > 1)] # Remove empty and 1-character sentences
-        para_sents_list = [x for x in para_sents_list if re.search('[a-zA-Z]', x)] # Remove sentences without any alphabetic characters
+        ellipses_returned_para_sents = [re.sub(r' /ELLIPSIS/ ”', 
+                                               r' . . .”', 
+                                               x) 
+                                        for x in para_sents_spacy_list]
+        ellipses_returned_para_sents = [re.sub(r' /ELLIPSIS/ ', 
+                                               r' . . . ', 
+                                               x) 
+                                        for x 
+                                        in ellipses_returned_para_sents]
+        # Remove empty and 1-character sentences
+        para_sents_list = [x for x in ellipses_returned_para_sents 
+                           if (len(x) > 1)] 
+        # Remove sentences without any alphabetic characters
+        para_sents_list = [x for x in para_sents_list 
+                           if re.search('[a-zA-Z]', x)]
 
         sentences_list.extend(para_sents_list)
     
     return sentences_list
 
 
-def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -> str:
-    #TODO: add options, and add more functions in here that take care of stuff clean-text doesn't, like emoticons
+def clean_string(dirty_str: str, 
+                 lowercase = True, expand_contractions = True
+                 ) -> str:
+    #TODO: add more functions in here that take care of stuff clean-text doesn't, like emoticons
     """Clean a string.
 
     Args:
@@ -420,19 +449,19 @@ def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -
     if expand_contractions:
         mid_cleaning_str = contractions.fix(mid_cleaning_str)
 
-    mid_cleaning_str = clean(mid_cleaning_str, # TODO: Determine if we want to keep this dependency (clean-text). Chun says no. Find alternative?
-        fix_unicode=True,               # fix various unicode errors
-        to_ascii=True,                  # transliterate to closest ASCII representation
-        lower=lowercase,                # lowercase text
-        no_line_breaks=False,           # fully strip line breaks as opposed to only normalizing them
-        no_urls=False,                  # replace all URLs with a special token
-        no_emails=False,                # replace all email addresses with a special token
-        no_phone_numbers=False,         # replace all phone numbers with a special token
-        no_numbers=False,               # replace all numbers with a special token
-        no_digits=False,                # replace all digits with a special token
-        no_currency_symbols=False,      # replace all currency symbols with a special token
-        no_punct=False,                 # remove punctuation
-        # replace_with_punct="",          # instead of removing punctuations, you may replace them
+    mid_cleaning_str = clean(mid_cleaning_str, # TODO: Determine if we want to keep this dependency (clean-text). Probably not bc it's not being maintained. Find alternative?
+        fix_unicode = True,               # fix various unicode errors
+        to_ascii = True,                  # transliterate to closest ASCII representation
+        lower = lowercase,                # lowercase text
+        no_line_breaks = False,           # fully strip line breaks as opposed to only normalizing them
+        no_urls = False,                  # replace all URLs with a special token
+        no_emails = False,                # replace all email addresses with a special token
+        no_phone_numbers = False,         # replace all phone numbers with a special token
+        no_numbers = False,               # replace all numbers with a special token
+        no_digits = False,                # replace all digits with a special token
+        no_currency_symbols = False,      # replace all currency symbols with a special token
+        no_punct = False,                 # remove punctuation
+        # replace_with_punct="",          # instead of removing punctuation, you may replace it
         # replace_with_url="<URL>",
         # replace_with_email="<EMAIL>",
         # replace_with_phone_number="<PHONE>",
@@ -442,7 +471,9 @@ def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -
         lang="en"
     )
     
-    clean_str = ' '.join(mid_cleaning_str.split()) # remove leading, trailing, and repeated spaces, just in case any made it through.
+    # Remove leading, trailing, and repeated spaces, just in case any 
+    # made it through.
+    clean_str = ' '.join(mid_cleaning_str.split())
 
     return clean_str 
 
@@ -450,7 +481,8 @@ def clean_string(dirty_str: str, lowercase = True, expand_contractions = True) -
 def create_clean_df(sentences_list: list[str], 
                     lowercase = True, expand_contractions = True, 
                     title = "SentimentText", 
-                    save = False, save_filepath = CURRENT_DIR) -> pd.DataFrame:
+                    save = False, save_filepath = CURRENT_DIR,
+                    ) -> pd.DataFrame:
     """Create DataFrame of raw and cleaned sentences.
 
     From a list of sentences, create a DataFrame with columns 
@@ -478,9 +510,15 @@ def create_clean_df(sentences_list: list[str],
     sentiment_df['text_raw'] = sentiment_df['text_raw'].str.strip()
 
     # Clean the 'text_raw' column and create the 'cleaned_text' column
-    sentiment_df['cleaned_text'] = sentiment_df['text_raw'].apply(lambda x: clean_string(x,lowercase = lowercase, expand_contractions = expand_contractions)) # call clean_string(), defined above
-    sentiment_df['text_raw_len'] = sentiment_df['text_raw'].apply(lambda x: len(x))
-    sentiment_df['cleaned_text_len'] = sentiment_df['cleaned_text'].apply(lambda x: len(x))
+    sentiment_df['cleaned_text'] = sentiment_df['text_raw'].apply(
+        lambda x: 
+        clean_string(x, lowercase = lowercase, 
+                     expand_contractions = expand_contractions)
+        ) # call clean_string(), defined above
+    sentiment_df['text_raw_len'] = sentiment_df['text_raw'].apply(
+        lambda x: len(x))
+    sentiment_df['cleaned_text_len'] = sentiment_df['cleaned_text'].apply(
+        lambda x: len(x))
 
     # Drop Sentence if Raw length < 1 (Double check)
     sentiment_df = sentiment_df.loc[sentiment_df['text_raw_len'] > 0]
@@ -488,15 +526,18 @@ def create_clean_df(sentences_list: list[str],
 
     # Fill any empty cleaned_text with a neutral word
     neutral_word = 'NEUTRALWORD'
-    sentiment_df[sentiment_df['cleaned_text_len'] == 0]['cleaned_text'] = neutral_word
-    sentiment_df[sentiment_df['cleaned_text_len'] == 0]['cleaned_text_len'] = 11
+    sentiment_df[sentiment_df['cleaned_text_len'] == 0]['cleaned_text'] = \
+        neutral_word
+    sentiment_df[sentiment_df['cleaned_text_len'] == 0]['cleaned_text_len'] = \
+        11
 
     # Add Line Numbers
     sentence_nums = list(range(sentiment_df.shape[0]))
     sentiment_df.insert(0, 'sentence_num', sentence_nums)
 
     if save:
-        download_df(sentiment_df, title, save_filepath=save_filepath, filename_suffix='_clean')
+        download_df(sentiment_df, title, 
+                    save_filepath = save_filepath, filename_suffix='_clean')
     
     return sentiment_df
 
@@ -504,12 +545,13 @@ def create_clean_df(sentences_list: list[str],
 def preprocess_text(raw_text_str: str, para_sep: str = r'\n{2,}', 
                     lowercase = True, expand_contractions = True,
                     title = "SentimentText", save = False, 
-                    save_filepath = CURRENT_DIR)  -> pd.DataFrame:
-    """Turn raw text string into clean text DataFrame ready for analysis.
+                    save_filepath = CURRENT_DIR,
+                    )  -> pd.DataFrame:
+    """Turn raw string into clean text DataFrame ready for analysis.
 
     Args:
-        raw_text_str (str): A single string with paragraphs separated by 
-            para_sep.
+        raw_text_str (str): A single string (the entire text to be
+            analyzed) with paragraphs separated by para_sep.
         para_sep (str): A regular expression specifying the paragraph 
             separator. Defaults to r'\n{2,}' (two newline characters).
         title (str): The title of the text. Specify this if save =
@@ -526,13 +568,15 @@ def preprocess_text(raw_text_str: str, para_sep: str = r'\n{2,}',
     """
     sentences_list = segment_sentences(raw_text_str, para_sep)
     clean_df = create_clean_df(sentences_list, 
-                               lowercase = lowercase, expand_contractions = expand_contractions, 
-                               title=title, save=save, save_filepath=save_filepath)
+                               lowercase = lowercase, 
+                               expand_contractions = expand_contractions, 
+                               title = title, save = save, 
+                               save_filepath = save_filepath)
     return clean_df
 
-def vader(sentiment_df: pd.DataFrame, title = "") ->  pd.DataFrame:
+def vader(sentiment_df: pd.DataFrame, title="") ->  pd.DataFrame:
     # TODO: remove title from each of these models' params. Not doing
-    # now bc not backwards compatible (Dev's website code will break). AUGTODO
+    # now bc not backwards compatible (website backend code will break). AUGTODO
     """Run VADER sentiment analysis.
 
     Run VADER on the cleaned_text column of the passed DataFrame and 
@@ -558,10 +602,13 @@ def vader(sentiment_df: pd.DataFrame, title = "") ->  pd.DataFrame:
     sid_obj = SentimentIntensityAnalyzer()
     
     print("Running VADER sentiment analysis")
-    sentiment_vader_ls = [sid_obj.polarity_scores(asentence)['compound'] for asentence in sentiment_df['cleaned_text'].to_list()]
+    sentiment_vader_ls = [sid_obj.polarity_scores(asentence)['compound'] 
+                          for asentence 
+                          in sentiment_df['cleaned_text'].to_list()]
     
     # Create new VADER DataFrame to save results
-    vader_df = sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
+    vader_df = sentiment_df[['sentence_num', 'text_raw', 
+                             'cleaned_text']].copy(deep=True)
     vader_df['sentiment'] = pd.Series(sentiment_vader_ls) 
         
     return vader_df
@@ -590,18 +637,27 @@ def textblob(sentiment_df: pd.DataFrame, title: str) -> pd.DataFrame:
     from textblob import TextBlob
     
     print("Running TextBlob sentiment analysis")
-    sentiment_textblob_ls = [TextBlob(asentence).sentiment for asentence in sentiment_df['cleaned_text'].to_list()]
+    sentiment_textblob_ls = [TextBlob(asentence).sentiment 
+                             for asentence 
+                             in sentiment_df['cleaned_text'].to_list()]
     
     # Create new TextBlob DataFrame to save results
-    textblob_df = sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
-    textblob_df['sentiment'] = pd.Series([x.polarity for x in sentiment_textblob_ls]) 
-    textblob_df['subjectivity'] = pd.Series([x.subjectivity for x in sentiment_textblob_ls]) 
+    textblob_df = sentiment_df[['sentence_num', 'text_raw', 
+                                'cleaned_text']].copy(deep=True)
+    textblob_df['sentiment'] = pd.Series([x.polarity 
+                                          for x in sentiment_textblob_ls]) 
+    textblob_df['subjectivity'] = pd.Series([x.subjectivity 
+                                             for x in sentiment_textblob_ls]) 
     
     return textblob_df
 
 
 # Create class for data preparation for transformer models
 class SimpleDataset:
+    """Class for data preparation for transformer models.
+
+        For internal use only.
+    """
     def __init__(self, tokenized_texts):
         self.tokenized_texts = tokenized_texts
     
@@ -611,7 +667,7 @@ class SimpleDataset:
     def __getitem__(self, idx):
         return {k: v[idx] for k, v in self.tokenized_texts.items()}
 
-def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
+def distilbert(sentiment_df: pd.DataFrame, title="") -> pd.DataFrame:
     """Run DistilBERT sentiment analysis.
 
     Run the "DistilBERT base uncased finetuned SST-2" model on the 
@@ -621,7 +677,7 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
         sentiment analysis, see
         https://huggingface.co/docs/transformers/model_doc/distilbert 
         and
-        https://huggingface.co/distilbert-base-uncased-finetuned-sst-2-english.
+        huggingface.co/distilbert-base-uncased-finetuned-sst-2-english.
         
         
     Args:
@@ -633,18 +689,18 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
             'text_cleaned', 'binary_sentiment', 'label', 'score', and 
             'sentiment' columns, where the last four columns contain 
             the DistilBERT analysis results for each sentence. 
-            'binary_sentiment' is a 0 or 1, representing 'positive' and
-            'negative' sentiments, respectively. Those verbal labels are 
+            'binary_sentiment' is a 0 or 1, representing 'negative' and
+            'positive' sentiments, respectively. Those verbal labels are 
             given in the 'label' column. The 'score' for each sentence 
             reflects the model's confidence or certainty in its
-            label/sentiment assignment. The 'sentiment' columns contains
+            label/sentiment assignment. The 'sentiment' column contains
             an adjusted sentiment score between -1 and 1, which is equal
-            to the score, but negated for negatively labeld sentiments 
-            and positive for positive sentiments.
+            to the score but negated for negatively labeled sentiments.
     """
-    from transformers import AutoTokenizer #, AutoModelWithLMHead  # T5Base 50k
+    from transformers import AutoTokenizer
     from transformers import AutoModelForSequenceClassification, Trainer
-    # Some of these imports might be needed in other transformer models to be added later (TODO)
+    # Some of these imports might be needed in other transformer models 
+    # to be added later (TODO)
     # from transformers import pipeline
     # from transformers import AutoModelForSeq2SeqLM, AutoModelWithLMHead
     # from transformers import BertTokenizer, BertForSequenceClassification
@@ -652,7 +708,8 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
     
     print("Running DistilBERT sentiment analysis")
     # Load tokenizer and model, create trainer
-    model_name = "distilbert-base-uncased-finetuned-sst-2-english" # Note: use a cased model for German
+    model_name = "distilbert-base-uncased-finetuned-sst-2-english" 
+        # Note: If adding German models in the future, use a cased model
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     trainer = Trainer(model=model)
@@ -661,7 +718,8 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
     clean_sentences_list = sentiment_df['cleaned_text'].to_list()
 
     # Tokenize texts and create prediction data set
-    tokenized_texts = tokenizer(clean_sentences_list,truncation=True,padding=True)
+    tokenized_texts = tokenizer(clean_sentences_list, 
+                                truncation = True, padding = True)
     pred_dataset = SimpleDataset(tokenized_texts)
 
     # Run predictions
@@ -669,23 +727,34 @@ def distilbert(sentiment_df: pd.DataFrame, title = "") -> pd.DataFrame:
 
     # Transform sentiment predictions to labels
     sentiment_ls = np.argmax(prediction_results.predictions, axis=-1)
-    labels_ls = pd.Series(sentiment_ls).map(model.config.id2label) # 0 sentiment = NEGATIVE; 1 sentiment = POSTIVE
+    labels_ls = pd.Series(sentiment_ls).map(model.config.id2label)
     
-    # Calculate normalized scores (representing model confidence) using softmax and select the maximum score
-    scores_ls = (np.exp(prediction_results[0])/np.exp(prediction_results[0]).sum(-1,keepdims=True)).max(1)
+    # Calculate normalized scores (representing model confidence) 
+    # using softmax and select the maximum score
+    scores_ls = (np.exp(prediction_results[0])/np.exp(prediction_results[0])
+                 .sum(-1, keepdims=True)).max(1)
     
-    # Calculate adjusted sentiment scores based on score and positive/negative label
+    # Calculate adjusted sentiment scores based on score and 
+    # positive/negative label
     adjusted_scores_ls = scores_ls * np.where(sentiment_ls == 1, 1, -1)
 
-    # Create DataFrame with texts, predictions, labels, scores, and adjusted sentiments
-    results_df = pd.DataFrame(list(zip(sentiment_ls, labels_ls, scores_ls, adjusted_scores_ls)),
-                               columns=['binary_sentiment', 'label', 'score', 'sentiment'])
-    # Concatenate the calculated data DataFrame with the original distilbert_df
-    distilbert_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), results_df], axis=1)
+    # Create DataFrame with texts, predictions, labels, scores, and 
+    # adjusted sentiments
+    results_df = pd.DataFrame(list(zip(sentiment_ls, labels_ls, scores_ls, 
+                                       adjusted_scores_ls)),
+                               columns=['binary_sentiment', 'label', 'score', 
+                                        'sentiment'])
+    # Concatenate the calculated data DataFrame with the original 
+    # distilbert_df
+    distilbert_df = pd.concat([sentiment_df[['sentence_num', 
+                                             'text_raw', 
+                                             'cleaned_text',
+                                             ]].copy(deep=True), 
+                               results_df], axis = 1)
 
     return distilbert_df
 
-def sentimentr(sentiment_df: pd.DataFrame, title = ""):
+def sentimentr(sentiment_df: pd.DataFrame, title="") -> pd.DataFrame:
     """Run SentimentR sentiment analysis.
 
     Use the SentimentR library in R to run a variety of lexical
@@ -723,28 +792,37 @@ def sentimentr(sentiment_df: pd.DataFrame, title = ""):
     # Import the get_sentimentr_values() function from the R code
     get_sentimentr_rfunction = robjects.globalenv['get_sentimentr_values']
     
-    # Convert the Python list of strings (cleaned sentences) to an R character vector
+    # Convert Python list of strings (cleaned sentences) to an R 
+    # character vector
     sentences_vec = robjects.StrVector(sentiment_df['cleaned_text'].to_list())
 
     # Run the get_sentimentr_values() function from the R code, in R
     sentimentr_rdf = get_sentimentr_rfunction(sentences_vec)
 
-    # Convert the resulting rpy2.robjects.vectors.DataFrame to a pandas.DataFrame
-    sentimentr_df = pd.DataFrame.from_dict({ key : np.asarray(sentimentr_rdf.rx2(key)) for key in sentimentr_rdf.names })
+    # Convert the resulting rpy2.robjects.vectors.DataFrame to a 
+    # pandas.DataFrame
+    sentimentr_df = pd.DataFrame.from_dict({
+        key: np.asarray(sentimentr_rdf.rx2(key)) 
+        for key in sentimentr_rdf.names})
     
-    # Append entire sentimentr_df except the text_clean column to the passed DataFrame
-    sentimentr_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True), sentimentr_df.iloc[:,1:]], axis=1)
+    # Append entire sentimentr_df except the text_clean column 
+    # to the passed DataFrame
+    sentr_df = pd.concat([sentiment_df[['sentence_num', 'text_raw', 
+                                        'cleaned_text']].copy(deep=True), 
+                          sentimentr_df.iloc[:,1:]], axis = 1)
 
-    return sentimentr_df
+    return sentr_df
 
-# TODO: get rid of this function? (I think Dev's code relies on it,
+# TODO: get rid of this function? (I think the wesbite's code relies on it,
 # currently, but it's not actually necessary there.) 
 # Should we keep it in case people decide they want to run &
 # compare more models later? -- No, because all it'd do is append a
 # column to a dataframe, which the user can do on their own. AUGTODO:
 # remove this function and pull request to the front end to stop using
 # it. 
-def combine_model_results(sentiment_df: pd.DataFrame, title = "", **kwargs) -> pd.DataFrame:
+def combine_model_results(sentiment_df: pd.DataFrame, 
+                          title = "", 
+                          **kwargs) -> pd.DataFrame:
     # TODO: make these named params instead of freeform? as a check.
     '''
     Optional named args: vader = vader_df, textblob = textblob_df, 
@@ -753,7 +831,8 @@ def combine_model_results(sentiment_df: pd.DataFrame, title = "", **kwargs) -> p
     TODO: make sure this is working
     '''
     # Merge all dataframes into a new dataframe
-    all_sentiments_df = sentiment_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+    all_sentiments_df = sentiment_df[['sentence_num', 'text_raw',
+                                      'cleaned_text']].copy(deep=True)
     for key, value in kwargs.items():
         try:
             all_sentiments_df[key] = value['sentiment']
@@ -763,7 +842,8 @@ def combine_model_results(sentiment_df: pd.DataFrame, title = "", **kwargs) -> p
     return all_sentiments_df
 
 # AUGTODO remove title arg
-def compute_sentiments(sentiment_df: pd.DataFrame, title = "", models = ALL_MODELS_LIST) -> pd.DataFrame:
+def compute_sentiments(sentiment_df: pd.DataFrame, title = "", 
+                       models = ALL_MODELS_LIST) -> pd.DataFrame:
     """Run sentiment analysis model(s) on a DataFrame of cleaned text.
 
     Args:
@@ -781,18 +861,25 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title = "", models = ALL_MODE
             each model, containing the sentiment score assigned to each
             string by the model
     """
-    all_sentiments_df = sentiment_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+    all_sentiments_df = sentiment_df[['sentence_num', 'text_raw',
+                                      'cleaned_text']].copy(deep=True)
     if "vader" in models:
-        all_sentiments_df['vader'] = vader(sentiment_df,title)['sentiment']
+        all_sentiments_df['vader'] = vader(sentiment_df, title)['sentiment']
     if "textblob" in models:
-        all_sentiments_df['textblob'] = textblob(sentiment_df,title)['sentiment']
+        all_sentiments_df['textblob'] = textblob(sentiment_df, 
+                                                 title)['sentiment']
     if "distilbert" in models:
-        all_sentiments_df['distilbert'] = distilbert(sentiment_df,title)['sentiment']
+        all_sentiments_df['distilbert'] = distilbert(sentiment_df, 
+                                                     title)['sentiment']
     if "sentimentr" in models:
-        all_sentiments_df = pd.concat([all_sentiments_df, sentimentr(sentiment_df,title).iloc[:, 5:].copy(deep=True)], axis=1)
+        all_sentiments_df = pd.concat([all_sentiments_df, 
+                                       sentimentr(sentiment_df, title)
+                                       .iloc[:, 5:].copy(deep=True)], 
+                                      axis = 1)
     for user_model in models:
         if user_model not in ALL_MODELS_LIST:
-            print(f"Warning: {user_model} model not found in list of accepted models. Check your spelling.")
+            print(f"Warning: {user_model} model not found in list of accepted "
+                  f"models. Check your spelling.")
             print(f"\nThe accepted models are:\n")
             for model in ALL_MODELS_LIST:
                 print(model)
@@ -805,13 +892,13 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title = "", models = ALL_MODE
 def plot_sentiments(all_sentiments_df: pd.DataFrame, 
                     title: str, 
                     models = ALL_MODELS_LIST, #TODO this isn't going to work with sentimentR right now
-                    adjustments="normalizedZeroMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
-                    smoothing="sma",
+                    adjustments = "normalizedZeroMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
+                    smoothing = "sma",
                     plot = "save", # AUGTODO: change to save_plot and display_plot booleans
-                    save_filepath=CURRENT_DIR, 
+                    save_filepath = CURRENT_DIR, 
                     window_pct = 10,
                     ) -> pd.DataFrame:
-    """Save a .png plot of raw or adjusted sentiments from the selected models.
+    """Plot the raw or adjusted sentiments from the selected models.
 
     Save a .png plot of raw, normed, or normed & adjusted sentiments 
     from the selected models to the specified directory. Smooth 
@@ -822,16 +909,15 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         all_sentiments_df (pd.DataFrame): Dataframe containing sentiment 
             values in columns named after the models in `models`
         title (str): Title of text
-        models (list of strings): A list of the sentiment
-            analysis models to be run, with lowercase titles. Must 
-            contain models with the same timesereies length 
-            (sentimentR cannot be included without adjustments). 
-            Defaults to ['vader', 'textblob', 'distilbert','sentimentr']. 
-        adjustments (str): "none" (plot raw sentiments), "normalizedZeroMean" 
-            (normalize to mean=0, sd=1), "normalizedAdjMean" (normalize and add
-            the scaled mean that woudld be computed by adjusting the 
-            original scores so their range is exactly -1 to 1). Defaults
-            to normalizedZeroMean.
+        models (list of strings): A list of the lowercase names of the 
+            models to plot. These models' timeseries/sentiment 
+            DataFrames must have the same length. Defaults to
+            to ['vader', 'textblob', 'distilbert', 'sentimentr']. 
+        adjustments (str): "none" (plot raw sentiments), 
+            "normalizedZeroMean" (normalize to mean = 0, sd = 1), 
+            "normalizedAdjMean" (normalize and add the scaled mean that 
+            would be computed by adjusting the original scores so their 
+            range is exactly -1 to 1). Defaults to normalizedZeroMean.
         smoothing (str): "sma" for a simple moving average (aka sliding 
             window with window size determined by window_pct), "lowess"
             for LOWESS smoothing using parameter = [TODO]
@@ -841,9 +927,6 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             Defaults to the current working directory.
         window_pct (int): percentage of total text length to use as the
             window size for SMA smoothing
-        models (list[str]): list of the lowercase names of the 
-            models to plot. These models' timeseries/results must have the same 
-            length. (SentimentR cannot be included without adjustments.)
 
     Returns:
         TODO
@@ -854,13 +937,14 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         raise ValueError("Window percentage must be between 0 and 70")
     if window_pct > 20 or window_pct < 1:
         print("Warning: window percentage outside expected range (1-20)")
-    window_size = int(window_pct / 100 * all_sentiments_df.shape[0])
+    window_size = int(window_pct/100 * all_sentiments_df.shape[0])
 
-    camel_title = ''.join([re.sub(r'[^\w\s]','',x).capitalize() for x in title.split()])
+    camel_title = ''.join([re.sub(r'[^\w\s]', '', x).capitalize()
+                           for x in title.split()])
     
     if adjustments == "raw":
         # Plot Raw Timeseries
-        raw_rolling_mean = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+        raw_rolling_mean = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
         raw_rolling_mean[models] = all_sentiments_df[models].rolling(window_size, center=True).mean()
         plt.figure().clear()
         ax = raw_rolling_mean[models].plot(grid=True, lw=3)
@@ -868,7 +952,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         plt.xlabel('Sentence Number')
         plt.ylabel('Sentiment')
         if plot == "save" or plot == "both":
-            completepath = os.path.join(save_filepath,f"{camel_title}_rawSentiments.png")
+            completepath = os.path.join(save_filepath, f"{camel_title}_rawSentiments.png")
             plt.savefig(uniquify(completepath))
         if plot == "display" or plot == "both":
             plt.show()
@@ -876,7 +960,8 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         return raw_rolling_mean
 
     else:
-        # Compute the mean of each raw Sentiment Timeseries and adjust to [-1.0, 1.0] Range
+        # Compute the mean of each raw sentiment timeseries 
+        # and adjust to [-1.0, 1.0] range
         models_adj_mean_dt = {}
         for model in models:
             model_min = all_sentiments_df[model].min()
@@ -895,12 +980,12 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             print(f'Model: {model}\n  Raw Mean: {model_raw_mean}\n  Adj Mean: {models_adj_mean_dt[model]}\n  Min: {model_min}\n  Max: {model_max}\n  Range: {model_range}\n')
 
         # Normalize Timeseries with StandardScaler (u=0, sd=+/- 1)
-        all_sentiments_norm_df = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+        all_sentiments_norm_df = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
         all_sentiments_norm_df[models] = StandardScaler().fit_transform(all_sentiments_df[models])
 
         if adjustments == "normalizedZeroMean":
             # Plot Normalized Timeseries to same mean (Q: Is this mean 0? If not, change filename below.)
-            norm_rolling_mean = all_sentiments_norm_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+            norm_rolling_mean = all_sentiments_norm_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
             norm_rolling_mean[models] = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
             plt.figure().clear()
             ax = norm_rolling_mean[models].plot(grid=True, lw=3)
@@ -908,7 +993,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             plt.xlabel('Sentence Number')
             plt.ylabel('Sentiment')
             if plot == "save" or plot == "both":
-                completepath = os.path.join(save_filepath,f"{camel_title}_normalizedZeroMeanSentiments.png")
+                completepath = os.path.join(save_filepath, f"{camel_title}_normalizedZeroMeanSentiments.png")
                 plt.savefig(uniquify(completepath))
             if plot == "display" or plot == "both":
                 plt.show()
@@ -919,11 +1004,11 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         else: # adjustments == "normalizedAdjMean"
             # Plot StandardScaler + Original Mean
             # Plot Normalized Timeseries to their adjusted/rescaled original means
-            all_sentiments_adjnorm_df = all_sentiments_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+            all_sentiments_adjnorm_df = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
             for amodel in models:
                 all_sentiments_adjnorm_df[amodel] = all_sentiments_norm_df[amodel] + models_adj_mean_dt[amodel]
 
-            norm_adj_rolling_mean = all_sentiments_adjnorm_df[['sentence_num','text_raw','cleaned_text']].copy(deep=True)
+            norm_adj_rolling_mean = all_sentiments_adjnorm_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
             norm_adj_rolling_mean[models] = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
             plt.figure().clear()
             ax = norm_adj_rolling_mean[models].plot(grid=True, lw=3)
@@ -931,7 +1016,7 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
             plt.xlabel('Sentence Number')
             plt.ylabel('Sentiment')
             if plot == "save" or plot == "both":
-                completepath = os.path.join(save_filepath,f"{camel_title}_normalizedAdjustedMeanSentiments.png")
+                completepath = os.path.join(save_filepath, f"{camel_title}_normalizedAdjustedMeanSentiments.png")
                 plt.savefig(uniquify(completepath))
             if plot == "display" or plot == "both":
                 plt.show()
@@ -940,8 +1025,8 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         
     #TODO: add lowess option
     # from statsmodels.nonparametric.smoothers_lowess import lowess
-    # y=current_sentiment_arc_df[selected_model.value].values
-    # x=np.arange(current_sentiment_arc_df.shape[0]) # i think this is
+    # y = current_sentiment_arc_df[selected_model.value].values
+    # x = np.arange(current_sentiment_arc_df.shape[0]) # i think this is
     # just the number of rows in the df
     # lowess(y, x, frac=1/30)[:,1].tolist()
 
@@ -954,7 +1039,7 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
                 distance_min = 360,
                 prominence_min = 0.05,
                 width_min = 25
-                ) -> tuple[list[int],list[float],list[int],list[float]]:
+                ) -> tuple[list[int], list[float], list[int], list[float]]:
     """[summary] TODO
     
     Uses find_peaks() from scipy.signal (using the parameter specified
@@ -983,6 +1068,8 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
         A tuple containing four lists: peak x-values, peak y-values,
             trough x-values, and trough y-values
     """
+    
+    from scipy.signal import find_peaks
     
     model_name = model.lower().strip() # (Just in case the accepted values for the model param 
                                        # get messed up in future edits)
@@ -1018,7 +1105,7 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
         _ = plt.grid(True, alpha=0.3)
 
     if plot == "save" or plot == "both":
-        completepath = os.path.join(save_filepath,f"{title} cruxes ({algo} algorithm).png")
+        completepath = os.path.join(save_filepath, f"{title} cruxes ({algo} algorithm).png")
         plt.savefig(uniquify(completepath))
     if plot == "display" or plot == "both":
         plt.show()
@@ -1031,7 +1118,7 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
 def crux_context(sentiment_df: pd.DataFrame, 
                  peaks: list, 
                  valleys: list, 
-                 n=10) -> tuple[list,str]:
+                 n = 10) -> tuple[list, str]:
     """Return sentences around each sentiment crux
 
     Args:
@@ -1062,7 +1149,7 @@ def crux_context(sentiment_df: pd.DataFrame,
     for i, peak in enumerate(peaks): # Iterate through all peaks
         peaks_list = sentiment_df.iloc[peak-halfwindow:peak+halfwindow].text_raw
         crux_context_str += f"Peak #{i} at Sentence #{peak}:\n\n{newline.join(peaks_list)}\n\n\n"
-        crux_context_list.append(("peak",peak,peaks_list))
+        crux_context_list.append(("peak", peak, peaks_list))
 
     crux_context_str += '=================================================='
     crux_context_str += '===========     Crux Valley Points    ============'
@@ -1071,7 +1158,7 @@ def crux_context(sentiment_df: pd.DataFrame,
     for i, valley in enumerate(valleys): # Iterate through all valleys
         crux_valleys_list = sentiment_df.iloc[valley-halfwindow-1:valley+halfwindow].text_raw
         crux_context_str += f"Valley #{i} at Sentence #{valley}:\n\n{newline.join(crux_valleys_list)}\n\n\n"
-        crux_context_list.append(("valley",valley,crux_valleys_list))
+        crux_context_list.append(("valley", valley, crux_valleys_list))
 
     return crux_context_list, crux_context_str
 
