@@ -1,5 +1,5 @@
 # SentArcs
-A wrapper for comparing results from an ensemble of sentiment analysis models.
+A Python package for running an ensemble of sentiment analysis models and comparing their results. Wraps functions for text cleaning and the VADER, TextBlob, DistilBERT, and SentimentR sentiment analysis models, and provides a new function for plotting the results with various adjustments.
 
 ## Installation
 Download clone this GitHub repository, or download it as a .zip and unzip it.
