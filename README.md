@@ -2,12 +2,12 @@
 A wrapper for comparing results from an ensemble of sentiment analysis models.
 
 ## Installation
-Download this GitHub repository as a .zip. Unzip it.
-Use this console shell command to install SentimentArcsPackage :
+Download clone this GitHub repository, or download it as a .zip and unzip it.
+Use this console shell command to install SentimentArcsPackage:
 ```shell
 $ python3 -m pip install /path/to/SentimentArcsPackage 
 ```
-To update an existing local copy of the package, run:
+To reinstall after an update to the existing local copy of the package, run:
 ```shell
 $ pip install --upgrade /path/to/SentimentArcsPackage
 ```
@@ -35,4 +35,4 @@ Then, in a console shell:
 python3 /path/to/my_script.py
 ```
 
-Or, import and use within an interactive python notebook through the interface of your choice (e.g., Google Colab, Anaconda) using the code in the main() function above.
+Or, import and use within an interactive python notebook through the interface of your choice (e.g., Google Colab, Jupyter Notebook) using the code in the main() function above.
