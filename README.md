@@ -32,7 +32,7 @@ if __name__ == "__main__":
 ```
 Then, in a console shell:
 ```shell
-python3 /path/to/my_script.py
+$ python3 /path/to/my_script.py
 ```
 
 Or, import and use within an interactive python notebook through the interface of your choice (e.g., Google Colab, Jupyter Notebook) using the code in the main() function above.
