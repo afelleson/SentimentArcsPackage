@@ -55,12 +55,10 @@ ALL_MODELS_LIST = ['vader',
                    'distilbert', 
                    'sentimentr',
                    ]
-        # TODO: add nlptown and roberta15lg (from simplified notebook) 
-        # after figuring out how to source more compute power.
-# TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options are passing it to every function or making a SAobject that has title as a member datum.
+    # TODO: add nlptown and roberta15lg (from simplified notebook) after 
+    # figuring out how to source more compute power.
+# TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options include passing it to every function or making a SAobject that has title as a member datum.
 
-
-### FUNCTIONS ###
 
 # If using modin.pandas as pd:
 # Code to import a csv as a pd.df that can be passed to the model functions: 
