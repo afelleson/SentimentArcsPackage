@@ -11,7 +11,7 @@ https://github.com/jon-chun/sentimentarcs_notebooks.
 """
 
 import configparser
-import datetime
+from datetime import datetime
 import re
 import os
 
@@ -121,26 +121,29 @@ def download_df(df_obj: pd.DataFrame, title: str,
             time to the file name. Defaults to False.
 
     Returns:
-        err_code (int): Non-zero value indicateing error code, or zero 
-            on success.
-        err_msg (str or None): Human readable error message, or None on 
-            success.
+        unique_path (str): The complete path to the saved .csv file.
+        
+    Raises:
+        TypeError: If the first argument is not a pandas DataFrame.
     """
-
     camel_title = ''.join([re.sub(r'[^\w\s]', '', x).capitalize() 
-                           for x in title.split()])
+                           for x in re.split(r'[\s\.]',title)])
     if isinstance(df_obj, pd.DataFrame):
         if not date:
             out_filename = camel_title.split('.')[0] + filename_suffix + ".csv"
         else:
-            datetime_str = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-            out_filename = camel_title.split('.')[0] + '_' + filename_suffix \
-                + datetime_str + ".csv"
+            datetime_str = datetime.now().strftime('%Y-%m-%d %H:%M')
+            out_filename = camel_title.split('.')[0] + filename_suffix \
+                + " " + datetime_str + ".csv"
 
-        completepath = os.path.join(save_filepath, out_filename)
-        df_obj.to_csv(uniquify(completepath), index=False)
+        complete_path = os.path.join(save_filepath, out_filename)
+        unique_path = uniquify(complete_path)
+        
+        df_obj.to_csv(unique_path, index=False)
+        return unique_path
+    
     else:
-        raise TypeError('Expected pandas DataFrame as first argument; got ' + \
+        raise TypeError('Expected Pandas DataFrame as first argument; got ' + \
             str(type(df_obj).__name__))
 
 
