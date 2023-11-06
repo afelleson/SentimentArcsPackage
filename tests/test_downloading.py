@@ -47,31 +47,53 @@ def random_df_fixture():
     })
     return random_df
 
-
-def test_download_df_with_all_args(random_df_fixture,tmp_path):
+@pytest.mark.parametrize(
+    "kwargs, expected_file_name",
+    [
+        ({"filename_suffix":'_test_DF', "date":True}, 
+         f"ThisIsMyText_test_DF {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}.csv"), 
+        ({"filename_suffix":"", "date":True}, 
+         f"ThisIsMyText {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}.csv"), 
+        ({"date":True}, 
+         f"ThisIsMyText_df {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}.csv"), 
+        ({"filename_suffix":"_test_DF", "date":False}, 
+         "ThisIsMyText_test_DF.csv"), 
+        ({}, 
+         "ThisIsMyText_df.csv"),
+    ],
+    ids=["all_args", "empty_suffix", "default_suffix", "no_date", "default_suffix_no_date"],
+)
+def test_download_df(random_df_fixture,tmp_path, kwargs, expected_file_name):
+    """Note: Sometimes may fail when it shouldn't due to a minute
+    changeover in the datetime string if run at just the wrong time.
+    """
 
     returned_path = download_df(random_df_fixture, 
                                 title="THIS is my.tExt", 
                                 save_filepath=tmp_path, 
-                                filename_suffix='_test_DF', date=True)
+                                **kwargs)
 
-    datetime_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
-    expected_file_path = os.path.join(tmp_path, 
-                                      f'ThisIsMyText_test_DF {datetime_str}.csv')
-
-    print("\nexpected: ", expected_file_path)
-    print("returned: ", returned_path)
+    expected_path = os.path.join(tmp_path, expected_file_name)
     
-    # Failures here won't halt execution
-    expect(os.path.exists(expected_file_path), 
+    expect(returned_path==expected_path, 
+           "Returned value for file path does not match expected value:" +
+           "\n-- Expected: " + expected_path + 
+           "\n-- Returned: " + returned_path)
+    expect(os.path.exists(expected_path), 
            "Expected file not found")
-    expect(returned_path==expected_file_path, 
-           "Returned value for file path does not match expected value")
-    expect(lambda: pd.testing.assert_frame_equal(pd.read_csv(expected_file_path), 
+    expect(lambda: pd.testing.assert_frame_equal(pd.read_csv(expected_path), 
                                                  random_df_fixture, 
                                                  check_dtype=False), 
             "Saved DataFrame does not match input DataFrame")
-                          
-    # Halt execution and show the stack trace for failed assertion(s)
-    assert_expectations() 
+    assert_expectations()
+    
+def test_download_df_TypeError(tmp_path):
+    array = [["a","b","c"],[1,2,3]]
+    
+    with pytest.raises(TypeError) as error_info:
+        download_df(array, title="text title", save_filepath=tmp_path)
+        
+    assert "list" in str(error_info.value)
+    
+    
     
