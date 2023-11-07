@@ -79,23 +79,22 @@ def test_download_df(random_df_fixture,tmp_path, kwargs, expected_file_name):
     else: 
         expected_path_plus_one_min = expected_path
     
-    expect(returned_path==expected_path or returned_path==expected_path_plus_one_min, 
-           "Returned value for file path does not match expected value:" +
-           "\n-- Expected: " + expected_path + 
-           "\n-- Returned: " + returned_path)
-    expect(os.path.exists(expected_path) or os.path.exists(expected_path_plus_one_min), 
-           "Expected file not found")
+    assert returned_path==expected_path or returned_path==expected_path_plus_one_min, \
+           "Returned value for file path does not match expected value:" + \
+           "\n-- Expected: " + expected_path + \
+           "\n-- Returned: " + returned_path
+    assert os.path.exists(expected_path) or os.path.exists(expected_path_plus_one_min), \
+           "Expected file not found"
+    
     if returned_path==expected_path_plus_one_min:
         downloaded_frame = pd.read_csv(expected_path_plus_one_min)
     else:
         downloaded_frame = pd.read_csv(expected_path)
-    expect(lambda: pd.testing.assert_frame_equal(downloaded_frame, 
-                                                 random_df_fixture, 
-                                                 check_dtype=False), 
-            "Saved DataFrame does not match input DataFrame")
-    assert_expectations()
+    pd.testing.assert_frame_equal(downloaded_frame, random_df_fixture, 
+                                  check_dtype=False)
+        # "Saved DataFrame does not match input DataFrame"
     
-def test_download_df_TypeError(tmp_path):
+def test_download_df_TypeError_list(tmp_path):
     array = [["a","b","c"],[1,2,3]]
     
     with pytest.raises(TypeError) as error_info:
