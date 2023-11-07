@@ -64,9 +64,6 @@ def random_df_fixture():
     ids=["all_args", "empty_suffix", "default_suffix", "no_date", "default_suffix_no_date"],
 )
 def test_download_df(random_df_fixture,tmp_path, kwargs, expected_file_name):
-    """Note: Sometimes may fail when it shouldn't due to a minute
-    changeover in the datetime string if run at just the wrong time.
-    """
 
     returned_path = download_df(random_df_fixture, 
                                 title="THIS is my.tExt", 
@@ -74,14 +71,25 @@ def test_download_df(random_df_fixture,tmp_path, kwargs, expected_file_name):
                                 **kwargs)
 
     expected_path = os.path.join(tmp_path, expected_file_name)
+    if ("date" in kwargs) and (kwargs["date"] == True):
+        expected_path_plus_one_min = expected_path[:-5] + str(int(expected_path[-5])+1) + expected_path[-4:]
+        # Without this, sometimes a date=True test may fail if run at 
+        # just the wrong time due to a minute changeover in the datetime 
+        # string.
+    else: 
+        expected_path_plus_one_min = expected_path
     
-    expect(returned_path==expected_path, 
+    expect(returned_path==expected_path or returned_path==expected_path_plus_one_min, 
            "Returned value for file path does not match expected value:" +
            "\n-- Expected: " + expected_path + 
            "\n-- Returned: " + returned_path)
-    expect(os.path.exists(expected_path), 
+    expect(os.path.exists(expected_path) or os.path.exists(expected_path_plus_one_min), 
            "Expected file not found")
-    expect(lambda: pd.testing.assert_frame_equal(pd.read_csv(expected_path), 
+    if returned_path==expected_path_plus_one_min:
+        downloaded_frame = pd.read_csv(expected_path_plus_one_min)
+    else:
+        downloaded_frame = pd.read_csv(expected_path)
+    expect(lambda: pd.testing.assert_frame_equal(downloaded_frame, 
                                                  random_df_fixture, 
                                                  check_dtype=False), 
             "Saved DataFrame does not match input DataFrame")
