@@ -80,7 +80,8 @@ ALL_MODELS_LIST = ['vader',
 def uniquify(path: str) -> str:
     """Generate a unique filename for a file to be saved.
     
-    Append (1), or (2), etc, to a file name if the file already exists.
+    Append "(1)" or "(2)", etc., to a file name if the file already 
+    exists.
 
     Args:
         path (str): Complete path to the file, including the extension
@@ -100,15 +101,15 @@ def uniquify(path: str) -> str:
 
 def download_df(df_obj: pd.DataFrame, title: str, 
                 save_filepath = CURRENT_DIR, 
-                filename_suffix='_df', 
+                filename_suffix="", 
                 date = False,
                 ):
     """Write DataFrame object to csv file.
 
-    Save DataFrame as a csv file named after the text title + the given 
-    suffix in the provided directory. If a file with the same name
-    already exists there, a number in parentheses is appended to the 
-    file name.
+    Save DataFrame as a csv file named after the text title (converted
+    to camel case) + the given suffix in the specified directory. If a 
+    file with the same name already exists there, a number in 
+    parentheses is appended to the file name.
     
     Args:
         df_obj (pd.DataFrame): DataFrame to save
@@ -118,13 +119,29 @@ def download_df(df_obj: pd.DataFrame, title: str,
         filename_suffix (str, optional): Text to append to the file 
             name, after the text title. Defaults to '_df'.
         date (bool, optional): Whether or not to append the date and 
-            time to the file name. Defaults to False.
+            time to the file name (after the filename_suffix). Defaults 
+            to False.
 
     Returns:
         unique_path (str): The complete path to the saved .csv file.
         
     Raises:
         TypeError: If the first argument is not a pandas DataFrame.
+        
+    Examples:
+        >>> sa.download_df(textblob_df, title="the hunger.games.", 
+                           save_filepath="/Users/Ava/THG", 
+                           filename_suffix="_textblob",
+                           date=True)
+        /Users/Ava/THG/TheHungerGames_textblob 2023-11-07 18:03.csv
+        
+        >>> sa.download_df(results_df, "The Hunger Games")
+        /Path/to/DirectoryContainingThisPythonFile/TheHungerGames.csv
+
+        >>> sa.download_df(final_sentiment_df, title="the_hunger_games", 
+                           save_filepath="/Users/Ava/THG",
+                           filename_suffix="_results")
+        /Users/Ava/THG/The_hunger_games_results.csv
     """
     camel_title = ''.join([re.sub(r'[^\w\s]', '', x).capitalize() 
                            for x in re.split(r'[\s\.]',title)])
@@ -143,8 +160,8 @@ def download_df(df_obj: pd.DataFrame, title: str,
         return unique_path
     
     else:
-        raise TypeError('Expected Pandas DataFrame as first argument; got ' + \
-            str(type(df_obj).__name__))
+        raise TypeError('Expected pandas DataFrame as first argument; ' \
+                        'got ' + str(type(df_obj).__name__))
 
 
 def upload_text(filepath: str) -> str:
