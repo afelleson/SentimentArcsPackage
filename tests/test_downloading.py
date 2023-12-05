@@ -55,11 +55,11 @@ def random_df_fixture():
         ({"filename_suffix":"", "date":True}, 
          f"ThisIsMyText {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}.csv"), 
         ({"date":True}, 
-         f"ThisIsMyText_df {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}.csv"), 
+         f"ThisIsMyText {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}.csv"), 
         ({"filename_suffix":"_test_DF", "date":False}, 
          "ThisIsMyText_test_DF.csv"), 
         ({}, 
-         "ThisIsMyText_df.csv"),
+         "ThisIsMyText.csv"),
     ],
     ids=["all_args", "empty_suffix", "default_suffix", "no_date", "default_suffix_no_date"],
 )
@@ -102,5 +102,20 @@ def test_download_df_TypeError_list(tmp_path):
         
     assert "list" in str(error_info.value)
     
+def test_uniquify(random_df_fixture, tmp_path):
+    file_name_no_extension = "file"
+    extension = ".csv"
+    file_name = file_name_no_extension + extension
     
+    file_path = os.path.join(tmp_path, file_name)
+    file_path_no_extension = os.path.join(tmp_path, file_name_no_extension)
     
+    assert uniquify(file_path) == file_path, \
+        "Expected unchanged file path"
+    
+    for downloads in range(1,26):
+        random_df_fixture.to_csv(uniquify(file_path))
+        
+        assert uniquify(file_path) == file_path_no_extension + " (" + \
+            str(downloads) + ")" + extension, \
+            "Expected appended (" + str(downloads) + ")"
