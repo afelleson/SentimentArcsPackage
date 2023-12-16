@@ -1,5 +1,11 @@
-# SentArcs
-A Python package for running an ensemble of sentiment analysis models and comparing their results. Wraps functions for text cleaning and the VADER, TextBlob, DistilBERT, and SentimentR sentiment analysis models, and provides a new function for plotting the results with various adjustments.
+# SimplifiedSentimentArcs
+A Python package for running an ensemble of sentiment analysis models
+and comparing their results. Wraps functions for text cleaning and the
+VADER, TextBlob, DistilBERT, and SentimentR sentiment analysis models,
+and provides a new function for plotting the results with various
+adjustments.
+
+Meant to be compatible with [SentimentArcs_WebApp](https://github.com/DevAkre/SentimentArcs_WebApp).
 
 ## Installation
 Download clone this GitHub repository, or download it as a .zip and unzip it.
