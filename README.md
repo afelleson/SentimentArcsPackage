@@ -5,7 +5,9 @@ VADER, TextBlob, DistilBERT, and SentimentR sentiment analysis models,
 and provides a new function for plotting the results with various
 adjustments.
 
-Meant to be compatible with [SentimentArcs_WebApp](https://github.com/DevAkre/SentimentArcs_WebApp).
+Created for
+[SentimentArcs_WebApp](https://github.com/DevAkre/SentimentArcs_WebApp)
+and other uses.
 
 ## Installation
 Download clone this GitHub repository, or download it as a .zip and unzip it.
