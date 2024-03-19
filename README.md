@@ -10,8 +10,8 @@ Created for
 and other uses.
 
 ## Installation
-Download clone this GitHub repository, or download it as a .zip and unzip it.
-Use this console shell command to install SentimentArcsPackage:
+Clone this GitHub repository, or download it as a .zip and unzip it.
+Use this console shell command to install the package:
 ```shell
 $ python3 -m pip install /path/to/SentimentArcsPackage 
 ```
@@ -26,14 +26,25 @@ Import and use within a python script, say my_script.py:
 import imppkg as sa
 
 def main():
-    with open('scollins_thehungergames1.txt', 'r') as file:
+    with open("scollins_thehungergames.txt", "r") as file:
         text = file.read()
 
-    sentiment_df = sa.preprocess_text(text)
+    title = "The Hunger Games"
 
-    textblob_df = sa.compute_sentiments(sentiment_df, models=["textblob"])
+    clean_df = sa.preprocess_text(text)
 
-    sa.download_df(textblob_df, title="The Hunger Games", filename_suffix='_textblob_sentiments')
+    distilbert_df = sa.compute_sentiments(clean_df, models=["distilbert"])
+
+    sa.download_df(distilbert_df, title, filename_suffix="_distilbert_raw_sentiments")
+
+    sentiment_results_df = sa.compute_sentiments(clean_df, title, models=["vader", "textblob", "sentimentr"])
+
+    smoothed_no_adjustments_df = sa.plot_sentiments(sentiment_results_df, title,
+                                                            adjustments="none", plot = "save")
+
+    smoothed_zero_mean_df = sa.plot_sentiments(sentiment_results_df, title, models = ["vader", "textblob", "distilbert",
+                                                       "sentimentr_jockers_rinker", "sentimentr_jockers", "sentimentr_huliu"],
+                                                       plot = "display")
 
 if __name__ == "__main__":
     main()
