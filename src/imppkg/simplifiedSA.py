@@ -50,11 +50,11 @@ plt.rcParams["font.size"] = 22
 
 # Global variables
 CURRENT_DIR = os.getcwd()
-ALL_MODELS_LIST = ['vader', 
-                   'textblob', 
-                   'distilbert', 
-                   'sentimentr',
-                   ]
+# ALL_MODELS_LIST = ['vader', 
+#                    'textblob', 
+#                    'distilbert', 
+#                    'sentimentr',
+#                    ]
     # TODO: add nlptown and roberta15lg (from simplified notebook) after 
     # figuring out how to source more compute power.
 # TODO: consider making TITLE a global variable. I don't like that because the user has to set it. Other options include passing it to every function or making a SAobject that has title as a member datum.
@@ -558,7 +558,7 @@ def create_clean_df(sentences_list: list[str],
 
     if save:
         download_df(sentiment_df, title, 
-                    save_filepath = save_filepath, filename_suffix='_clean')
+                    save_filepath=save_filepath, filename_suffix='_clean')
     
     return sentiment_df
 
@@ -776,7 +776,7 @@ def distilbert(sentiment_df: pd.DataFrame, title="") -> pd.DataFrame:
     return distilbert_df
 
 def sentimentr(sentiment_df: pd.DataFrame, title="") -> pd.DataFrame:
-    """Run SentimentR sentiment analysis.
+    """Run all SentimentR sentiment analyses.
 
     Use the SentimentR library in R to run a variety of lexical
     sentiment analysis models on the text.        
@@ -787,7 +787,7 @@ def sentimentr(sentiment_df: pd.DataFrame, title="") -> pd.DataFrame:
 
     Returns:
         pd.DataFrame: A DataFrame with 'sentence_num', 'text_raw', 
-            'text_cleaned', 'sentimentr_jockersrinker', 
+            'text_cleaned', 'sentimentr_jockers_rinker', 
             'sentimentr_jockers', 'sentimentr_huliu', 'sentimentr_nrc', 
             'sentimentr_senticnet', 'sentimentr_sentiword', 
             'sentimentr_loughran_mcdonald', and 
@@ -801,7 +801,7 @@ def sentimentr(sentiment_df: pd.DataFrame, title="") -> pd.DataFrame:
         # hash_sentiment_slangsd beause the text is not being cleaned 
         # with those lexicons in mind.
     
-    print("Running sentiment analyses with all all SentimentR lexicons")
+    print("Running sentiment analyses with all SentimentR lexicons")
     
     import rpy2.robjects as robjects
     r = robjects.r
@@ -864,7 +864,10 @@ def combine_model_results(sentiment_df: pd.DataFrame,
 
 # AUGTODO remove title arg
 def compute_sentiments(sentiment_df: pd.DataFrame, title = "", 
-                       models = ALL_MODELS_LIST) -> pd.DataFrame:
+                       models = ['vader', 
+                                 'textblob', 
+                                 'distilbert', 
+                                 'sentimentr']) -> pd.DataFrame:
     """Run sentiment analysis model(s) on a DataFrame of cleaned text.
 
     Args:
@@ -895,36 +898,57 @@ def compute_sentiments(sentiment_df: pd.DataFrame, title = "",
     if "sentimentr" in models:
         all_sentiments_df = pd.concat([all_sentiments_df, 
                                        sentimentr(sentiment_df, title)
-                                       .iloc[:, 5:].copy(deep=True)], 
-                                      axis = 1)
+                                       .iloc[:, 4:].copy(deep=True)], 
+                                       axis = 1)
+    
+    accepted_models = ['vader', 'textblob', 'distilbert', 'sentimentr']
     for user_model in models:
-        if user_model not in ALL_MODELS_LIST:
+        if user_model not in accepted_models:
             print(f"Warning: {user_model} model not found in list of accepted "
                   f"models. Check your spelling.")
-            print(f"\nThe accepted models are:\n")
-            for model in ALL_MODELS_LIST:
+            print(f"\nThe accepted models are: \n")
+            for model in accepted_models:
                 print(model)
                 print("\n")
     return all_sentiments_df
 
-# This function works on a df containing multiple models, and it creates a new df with the same column names but new sentiment values.
-# TODO: Also create functions that allow the user to input a df with only one model's sentiment values and append adjusted & normalized sentiments as new columns on the same df, in case they want to compare different adjustments & smoothing methods for the same model.
-# TODO: make separate smoothing and plotting functions? to abstract within this one
-def plot_sentiments(all_sentiments_df: pd.DataFrame, 
-                    title: str, 
-                    models = ALL_MODELS_LIST, #TODO this isn't going to work with sentimentR right now
-                    adjustments = "normalizedZeroMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
-                    smoothing = "sma",
-                    plot = "save", # AUGTODO: change to save_plot and display_plot booleans
-                    save_filepath = CURRENT_DIR, 
-                    window_pct = 10,
-                    ) -> pd.DataFrame:
-    """Plot the raw or adjusted sentiments from the selected models.
+# Utility function, not user-facing
+def filter_models(df: pd.DataFrame, models_list):
+    removed_models = []
+    existing_models = []
+    for model in models_list:
+        if model in df.columns:
+            existing_models.append(model)
+        else:
+            removed_models.append(model)
+    if removed_models:
+        print("The following models were skipped because they were not found in the DataFrame:")
+        for model in removed_models:
+            print("- " + model)
+    return existing_models
 
-    Save a .png plot of raw, normed, or normed & adjusted sentiments 
-    from the selected models to the specified directory. Smooth 
-    sentiment curves using the specified method before plotting. Also 
-    return the points from the plot in the form of a [TODO].
+# This function works on a df containing multiple models, and it creates a new df with the same column names but new sentiment values.
+# TODO: add an option to normalize before or after smoothing, rather
+# than just automatically doing it before (must also add arg to
+# plot_sentiments() function, of course)
+def adjust_and_smooth(all_sentiments_df: pd.DataFrame, 
+                      models = ['vader', 'textblob', 'distilbert', 
+                                'sentimentr_jockers_rinker', 
+                                'sentimentr_jockers', 
+                                'sentimentr_huliu', 'sentimentr_nrc', 
+                                'sentimentr_senticnet', 
+                                'sentimentr_sentiword', 
+                                'sentimentr_loughran_mcdonald', 
+                                'sentimentr_socal_google'],
+                      adjustments = "normalizedZeroMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
+                      smoothing = "sma", #TODO: add lowess smoothing option
+                      window_pct = 10,
+                      ) -> pd.DataFrame:
+    """Adjust sentiment values for comparison and plotting.
+
+    Optionally normalize and shift sentiment timeseries. Always smooth
+    timeseries using a simple moving average with the specified window.
+    Return a pandas DataFrame with the revised sentiment values.
 
     Args:
         all_sentiments_df (pd.DataFrame): Dataframe containing sentiment 
@@ -933,25 +957,26 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         models (list of strings): A list of the lowercase names of the 
             models to plot. These models' timeseries/sentiment 
             DataFrames must have the same length. Defaults to
-            to ['vader', 'textblob', 'distilbert', 'sentimentr']. 
+            to ['vader', 'textblob', 'distilbert', 
+            'sentimentr_jockers_rinker', 'sentimentr_jockers', 
+            'sentimentr_huliu', 'sentimentr_nrc', 
+            'sentimentr_senticnet', 'sentimentr_sentiword', 
+            'sentimentr_loughran_mcdonald', 'sentimentr_socal_google'].
         adjustments (str): "none" (plot raw sentiments), 
             "normalizedZeroMean" (normalize to mean = 0, sd = 1), 
             "normalizedAdjMean" (normalize and add the scaled mean that 
             would be computed by adjusting the original scores so their 
             range is exactly -1 to 1). Defaults to normalizedZeroMean.
         smoothing (str): "sma" for a simple moving average (aka sliding 
-            window with window size determined by window_pct), "lowess"
-            for LOWESS smoothing using parameter = [TODO]
-        plot (str): "display", "save", "both", or "none"
-        save_filepath (str): path (ending in '/') to the directory
-            the resulting plot png should be stored in.
-            Defaults to the current working directory.
+            window with window size determined by window_pct), (TODO:) 
+            "lowess" for LOWESS smoothing using parameter = [TODO]
         window_pct (int): percentage of total text length to use as the
             window size for SMA smoothing
 
     Returns:
-        TODO
-
+        adjustment_rolling_mean (pd.DataFrame): DataFrame containing the
+        adjusted and smoothed sentiment values, with the same column
+        names as the all_sentiments_df passed to the function.
     """
     
     if window_pct > 70 or window_pct <= 0:
@@ -959,19 +984,185 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
     if window_pct > 20 or window_pct < 1:
         print("Warning: window percentage outside expected range (1-20)")
     window_size = int(window_pct/100 * all_sentiments_df.shape[0])
+    
+    # Look at the models list and and remove any models that aren't 
+    # found as column names in all_sentiments_df. Also print a warning
+    # that this was done. (Purpose: to avoid failure if the user tries to plot a
+    # model they haven't computed sentiments for, especially if they're
+    # using the default value for the models list.)
+    models = filter_models(all_sentiments_df, models)
+    
+    if adjustments == "none":
+        # Just do a rolling mean on the raw sentiments
+        raw_rolling_mean = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
+        raw_rolling_mean[models] = all_sentiments_df[models].rolling(window_size, center=True).mean()
+        return raw_rolling_mean
 
+    else:
+        # Normalize Timeseries with StandardScaler (to have mu=0, sd=1)
+        all_sentiments_norm_df = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
+        all_sentiments_norm_df[models] = StandardScaler().fit_transform(all_sentiments_df[models])
+
+        if adjustments == "normalizedZeroMean":
+            # Do a rolling mean of the normalized timeseries
+            norm_rolling_mean = all_sentiments_norm_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
+            norm_rolling_mean[models] = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
+            
+            return norm_rolling_mean
+
+        elif adjustments == "normalizedAdjMean":
+            
+            # Compute the "adjusted mean" of each raw sentiment timeseries: 
+            #   if we were to rescale the whole timeseries to have the exact 
+            #   range -1 to 1, the adjusted mean is the mean of that rescaled 
+            #   timeseries.
+            models_adj_mean_dt = {}
+            for model in models:
+                model_min = all_sentiments_df[model].min()
+                model_max = all_sentiments_df[model].max()
+                model_range = model_max - model_min
+                model_raw_mean = all_sentiments_df[model].mean()
+                # Rescaling formula: Rescaled mean = (Original mean - Original minimum)/(Original range) * (New range) + New minimum
+                if model_range != 2.0:
+                    models_adj_mean_dt[model] = 2 * (model_raw_mean - model_min) / model_range - 1.0
+                else:
+                    models_adj_mean_dt[model] = model_raw_mean
+                # print(f'Model: {model}\n Min: {model_min}\n  Max:
+                #   {model_max}\n  Range: {model_range}\n Raw Mean:
+                #   {model_raw_mean}\n  Adj Mean:
+                #   {models_adj_mean_dt[model]}\n ')
+                
+            # Shift the normalized timeseries by the value of its adjusted mean
+            all_sentiments_adjnorm_df = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
+            for amodel in models:
+                all_sentiments_adjnorm_df[amodel] = all_sentiments_norm_df[amodel] + models_adj_mean_dt[amodel]
+            
+            # Do a rolling mean of the normalized timesereies + adjusted mean
+            norm_adj_rolling_mean = all_sentiments_adjnorm_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
+            norm_adj_rolling_mean[models] = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
+
+            return norm_adj_rolling_mean
+        
+        else: 
+            raise ValueError(f'adjustments argument value \'{adjustments}\' not recognized')
+        
+    #TODO: add lowess smoothing option
+    # Chun's original code:
+    # from statsmodels.nonparametric.smoothers_lowess import lowess
+    # y = current_sentiment_arc_df[selected_model.value].values
+    # x = np.arange(current_sentiment_arc_df.shape[0]) # i think this is
+    #   just the number of rows in the df
+    # lowess(y, x, frac=1/30)[:,1].tolist()
+
+def plot_sentiments(all_sentiments_df: pd.DataFrame, 
+                    title: str, 
+                    models = ['vader', 'textblob', 'distilbert', 
+                                'sentimentr_jockers_rinker', 
+                                'sentimentr_jockers', 
+                                'sentimentr_huliu', 'sentimentr_nrc', 
+                                'sentimentr_senticnet', 
+                                'sentimentr_sentiword', 
+                                'sentimentr_loughran_mcdonald', 
+                                'sentimentr_socal_google'], 
+                    adjustments = "normalizedZeroMean", # TODO: add a 'rescale' option, where all points are rescaled from their model's original scale to -1 to 1
+                    smoothing = "sma",
+                    plot = "save", # AUGTODO: change to save_plot and display_plot booleans (will make incompatible with the current web frontend code)
+                    save_filepath = CURRENT_DIR, 
+                    window_pct = 10,
+                    ) -> pd.DataFrame:
+    """Plot smoothed sentiments from the selected models.
+
+    Save a .png plot of raw, normed, or normed & adjusted sentiments 
+    from the selected models to the specified directory. Always smooth 
+    sentiment curves using the specified method before plotting. Also 
+    return the points from the plot in the form of a pandas DataFrame.
+
+    Args:
+        all_sentiments_df (pd.DataFrame): Dataframe containing sentiment 
+            values in columns named after the models in `models`
+        title (str): Title of text
+        models (list of strings): A list of the lowercase names of the 
+            models to plot. These models' timeseries/sentiment 
+            DataFrames must have the same length. Defaults to
+            to ['vader', 'textblob', 'distilbert', 
+            'sentimentr_jockers_rinker', 'sentimentr_jockers', 
+            'sentimentr_huliu', 'sentimentr_nrc', 
+            'sentimentr_senticnet', 'sentimentr_sentiword', 
+            'sentimentr_loughran_mcdonald', 'sentimentr_socal_google'].
+        adjustments (str): "none" (plot raw sentiments), 
+            "normalizedZeroMean" (normalize to mean = 0, sd = 1), 
+            "normalizedAdjMean" (normalize and add the scaled mean that 
+            would be computed by adjusting the original scores so their 
+            range is exactly -1 to 1). Defaults to "normalizedZeroMean".
+        smoothing (str): "sma" for a simple moving average (aka sliding 
+            window with window size determined by window_pct), (TODO:) 
+            "lowess" for LOWESS smoothing using parameter = [TODO]
+        plot (str): "display", "save", "both", or "none" (TODO: remove
+        'none' option)
+        save_filepath (str): path (ending in '/') to the directory
+            the resulting plot png should be stored in.
+            Defaults to the current working directory.
+        window_pct (int): percentage of total text length to use as the
+            window size for SMA smoothing
+
+    Returns:
+        adjustment_rolling_mean (pd.DataFrame): DataFrame containing the
+        adjusted and smoothed sentiment values, with the same column
+        names as the all_sentiments_df passed to the function.
+
+    """
+    
     camel_title = ''.join([re.sub(r'[^\w\s]', '', x).capitalize()
                            for x in title.split()])
     
-    if adjustments == "raw":
-        # Plot Raw Timeseries
-        raw_rolling_mean = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
-        raw_rolling_mean[models] = all_sentiments_df[models].rolling(window_size, center=True).mean()
+     # Look at the models list and and remove any models that aren't 
+    # found as column names in all_sentiments_df. Also print a warning
+    # that this was done. (Purpose: to avoid failure if the user tries to plot a
+    # model they haven't computed sentiments for, especially if they're
+    # using the default value for the models list.)
+    models = filter_models(all_sentiments_df, models)
+    
+    if adjustments == "none":
+        # Get rolling mean of raw sentiments
+        raw_rolling_mean = adjust_and_smooth(all_sentiments_df, 
+                                             models, adjustments, 
+                                             smoothing, window_pct)
+        
+        # Plot rolling mean of raw sentiments
         plt.figure().clear()
         ax = raw_rolling_mean[models].plot(grid=True, lw=3)
         ax.set_title(f'{title} Sentiment Analysis \n Raw Sentiment Timeseries')
         plt.xlabel('Sentence Number')
         plt.ylabel('Sentiment')
+        
+        # Shrink current axis by 20%
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # Place legend on the right
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        
+         # Legend text edits
+        replacements = {
+            'vader': 'VADER',
+            'textblob': 'TextBlob',
+            'distilbert': 'DistilBERT',
+            'sentimentr_': '',
+            '_': '-',
+        }
+        labels = [text.get_text() for text in ax.get_legend().get_texts()]
+        # new_labels = [replacements.get(label, label) for label in labels]
+        # new_labels2 = [label.replace("sentimentr_", "") for label in new_labels]
+        # new_labels3 = [label.replace("_", "-") for label in new_labels2]
+        # ax.legend(new_labels3)
+        new_labels = []
+        for label in labels:
+            for old, new in replacements.items():
+                label = label.replace(old, new)
+            new_labels.append(label)
+    
+        ax.get_legend().remove()
+        ax.legend(labels=new_labels, loc='center left', bbox_to_anchor=(1, 0.5))
+        
         if plot == "save" or plot == "both":
             completepath = os.path.join(save_filepath, f"{camel_title}_rawSentiments.png")
             plt.savefig(uniquify(completepath))
@@ -980,76 +1171,114 @@ def plot_sentiments(all_sentiments_df: pd.DataFrame,
         
         return raw_rolling_mean
 
-    else:
-        # Compute the mean of each raw sentiment timeseries 
-        # and adjust to [-1.0, 1.0] range
-        models_adj_mean_dt = {}
-        for model in models:
-            model_min = all_sentiments_df[model].min()
-            model_max = all_sentiments_df[model].max()
-            model_range = model_max - model_min
-            model_raw_mean = all_sentiments_df[model].mean()
-            # Rescaling formula: Rescaled Value = (Original Value - Original Minimum) / (Original Maximum - Original Minimum) * (New Maximum - New Minimum) + New Minimum
-                # TODO: rescale based on each model's potential range instead?
-            if model_range > 2.0:
-                models_adj_mean_dt[model] = 2*(model_raw_mean + model_min)/model_range - 1.0
-            elif model_range < 1.1: #Q: why not <= 1.0?
-                models_adj_mean_dt[model] = 2*(model_raw_mean + model_min)/model_range - 1.0
-                models_adj_mean_dt[model] = 2 * (model_raw_mean - model_min) / model_range - 1.0
-            else:
-                models_adj_mean_dt[model] = model_raw_mean
-            print(f'Model: {model}\n  Raw Mean: {model_raw_mean}\n  Adj Mean: {models_adj_mean_dt[model]}\n  Min: {model_min}\n  Max: {model_max}\n  Range: {model_range}\n')
-
-        # Normalize Timeseries with StandardScaler (u=0, sd=+/- 1)
-        all_sentiments_norm_df = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
-        all_sentiments_norm_df[models] = StandardScaler().fit_transform(all_sentiments_df[models])
-
-        if adjustments == "normalizedZeroMean":
-            # Plot Normalized Timeseries to same mean (Q: Is this mean 0? If not, change filename below.)
-            norm_rolling_mean = all_sentiments_norm_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
-            norm_rolling_mean[models] = all_sentiments_norm_df[models].rolling(window_size, center=True).mean()
-            plt.figure().clear()
-            ax = norm_rolling_mean[models].plot(grid=True, lw=3)
-            ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler')
-            plt.xlabel('Sentence Number')
-            plt.ylabel('Sentiment')
-            if plot == "save" or plot == "both":
-                completepath = os.path.join(save_filepath, f"{camel_title}_normalizedZeroMeanSentiments.png")
-                plt.savefig(uniquify(completepath))
-            if plot == "display" or plot == "both":
-                plt.show()
-            
-
-            return norm_rolling_mean
-
-        else: # adjustments == "normalizedAdjMean"
-            # Plot StandardScaler + Original Mean
-            # Plot Normalized Timeseries to their adjusted/rescaled original means
-            all_sentiments_adjnorm_df = all_sentiments_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
-            for amodel in models:
-                all_sentiments_adjnorm_df[amodel] = all_sentiments_norm_df[amodel] + models_adj_mean_dt[amodel]
-
-            norm_adj_rolling_mean = all_sentiments_adjnorm_df[['sentence_num', 'text_raw', 'cleaned_text']].copy(deep=True)
-            norm_adj_rolling_mean[models] = all_sentiments_adjnorm_df[models].rolling(window_size, center=True).mean()
-            plt.figure().clear()
-            ax = norm_adj_rolling_mean[models].plot(grid=True, lw=3)
-            ax.set_title(f'{title} Sentiment Analysis \n Normalization: Standard Scaler + Scaled Mean Adjustment')
-            plt.xlabel('Sentence Number')
-            plt.ylabel('Sentiment')
-            if plot == "save" or plot == "both":
-                completepath = os.path.join(save_filepath, f"{camel_title}_normalizedAdjustedMeanSentiments.png")
-                plt.savefig(uniquify(completepath))
-            if plot == "display" or plot == "both":
-                plt.show()
-
-            return norm_adj_rolling_mean
+    elif adjustments == "normalizedZeroMean":
+        # Get rolling mean of normalized sentiments (mean=0, sd=1)
+        norm_rolling_mean = adjust_and_smooth(all_sentiments_df, 
+                                             models, adjustments, 
+                                             smoothing, window_pct)
         
-    #TODO: add lowess option
-    # from statsmodels.nonparametric.smoothers_lowess import lowess
-    # y = current_sentiment_arc_df[selected_model.value].values
-    # x = np.arange(current_sentiment_arc_df.shape[0]) # i think this is
-    # just the number of rows in the df
-    # lowess(y, x, frac=1/30)[:,1].tolist()
+        # Plot rolling mean of normalized sentiments
+        plt.figure().clear()
+        ax = norm_rolling_mean[models].plot(grid=True, lw=3)
+        ax.set_title(f'{title} Sentiment Analysis \n with mean=0, sd=1 normalization')
+        plt.xlabel('Sentence Number')
+        plt.ylabel('Sentiment')
+        
+        # Shrink current axis by 20%
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # Place legend on the right
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        
+         # Legend text edits
+        replacements = {
+            'vader': 'VADER',
+            'textblob': 'TextBlob',
+            'distilbert': 'DistilBERT',
+            'sentimentr_': '',
+            '_': '-',
+        }
+        labels = [text.get_text() for text in ax.get_legend().get_texts()]
+        # new_labels = [replacements.get(label, label) for label in labels]
+        # new_labels2 = [label.replace("sentimentr_", "") for label in new_labels]
+        # new_labels3 = [label.replace("_", "-") for label in new_labels2]
+        # ax.legend(new_labels3)
+        new_labels = []
+        for label in labels:
+            for old, new in replacements.items():
+                label = label.replace(old, new)
+            new_labels.append(label)
+    
+        ax.get_legend().remove()
+        ax.legend(labels=new_labels, loc='center left', bbox_to_anchor=(1, 0.5))
+        
+        if plot == "save" or plot == "both":
+            completepath = os.path.join(save_filepath, f"{camel_title}_normalizedZeroMeanSentiments.png")
+            plt.savefig(uniquify(completepath))
+        if plot == "display" or plot == "both":
+            plt.show()
+
+        return norm_rolling_mean
+
+    elif adjustments == "normalizedAdjMean":
+        # Get rolling mean of normalized & adjusted sentiments 
+        # (mean = rescaled mean, sd = 1)
+        norm_adj_rolling_mean = adjust_and_smooth(all_sentiments_df, 
+                                             models, adjustments, 
+                                             smoothing, window_pct)
+        
+        # Plot rolling mean of normalized & adjusted sentiments
+        plt.figure().clear()
+        ax = norm_adj_rolling_mean[models].plot(grid=True, lw=3)
+        ax.set_title(f'{title} Sentiment Analysis \n with mean=0, sd=1 normalization + scaled mean adjustment')
+        plt.xlabel('Sentence Number')
+        plt.ylabel('Sentiment')
+        
+        # Shrink current axis by 20%
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # Place legend on the right
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        
+         # Legend text edits
+        replacements = {
+            'vader': 'VADER',
+            'textblob': 'TextBlob',
+            'distilbert': 'DistilBERT',
+            'sentimentr_': '',
+            '_': '-',
+        }
+        labels = [text.get_text() for text in ax.get_legend().get_texts()]
+        # new_labels = [replacements.get(label, label) for label in labels]
+        # new_labels2 = [label.replace("sentimentr_", "") for label in new_labels]
+        # new_labels3 = [label.replace("_", "-") for label in new_labels2]
+        # ax.legend(new_labels3)
+        new_labels = []
+        for label in labels:
+            for old, new in replacements.items():
+                label = label.replace(old, new)
+            new_labels.append(label)
+    
+        ax.get_legend().remove()
+        ax.legend(labels=new_labels, loc='center left', bbox_to_anchor=(1, 0.5))
+        
+        if plot == "save" or plot == "both":
+            completepath = os.path.join(save_filepath, f"{camel_title}_normalizedAdjustedMeanSentiments.png")
+            plt.savefig(uniquify(completepath))
+        if plot == "display" or plot == "both":
+            plt.show()
+
+        return norm_adj_rolling_mean
+    
+    else: 
+        raise ValueError(f'adjustments argument value \"{adjustments}" \
+                         not recognized. \nOptions are \n \"none\" (plot \
+                         raw sentiments), \n \"normalizedZeroMean\" \
+                         (normalize to mean = 0, sd = 1), or \n \
+                         \"normalizedAdjMean\" (normalize and add the \
+                         adjusted mean that would be computed by scaling \
+                         the original scores so their range is exactly \
+                         -1 to 1). Defaults to \"normalizedZeroMean\".')
 
 def find_cruxes(smoothed_sentiments_df: pd.DataFrame, 
                 title: str,
@@ -1061,11 +1290,12 @@ def find_cruxes(smoothed_sentiments_df: pd.DataFrame,
                 prominence_min = 0.05,
                 width_min = 25
                 ) -> tuple[list[int], list[float], list[int], list[float]]:
-    """[summary] TODO
+    """Find coordinates of peaks and troughs.
     
     Uses find_peaks() from scipy.signal (using the parameter specified
     by 'algo') to identify peaks and troughs in one model's sentiment
-    plot. Returns 
+    plot. Returns a tuple containing four lists: peak x-values, peak 
+    y-values, trough x-values, and trough y-values
 
     Args:
         smoothed_sentiments_df (pd.DataFrame): TODO

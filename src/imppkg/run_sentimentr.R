@@ -34,11 +34,11 @@ get_sentimentr_values <- function(sentences_vector) {
   
   get_sentences_obj <- get_sentences(sentences_vector)
   
-  jockersrinker <- sentiment(get_sentences_obj, 
-                             polarity_dt=lexicon::hash_sentiment_jockers_rinker, 
-                             hypen="", amplifier.weight=0.8, n.before=5, n.after=2,
-                             adversative.weight=0.25, neutral.nonverb.like = FALSE, 
-                             missing_value = NULL)
+  jockers_rinker <- sentiment(get_sentences_obj, 
+                              polarity_dt=lexicon::hash_sentiment_jockers_rinker, 
+                              hypen="", amplifier.weight=0.8, n.before=5, n.after=2,
+                              adversative.weight=0.25, neutral.nonverb.like = FALSE, 
+                              missing_value = NULL)
   
   jockers <- sentiment(get_sentences_obj, 
                        polarity_dt=lexicon::hash_sentiment_jockers, 
@@ -72,10 +72,10 @@ get_sentimentr_values <- function(sentences_vector) {
   
   # loughran_mcdonald is for financial texts
   loughran_mcdonald <- sentiment(get_sentences_obj, 
-                                polarity_dt=lexicon::hash_sentiment_loughran_mcdonald, 
-                                hypen="", amplifier.weight=0.8, n.before=5, n.after=2,
-                                adversative.weight=0.25, neutral.nonverb.like = FALSE, 
-                                missing_value = 0)
+                                 polarity_dt=lexicon::hash_sentiment_loughran_mcdonald, 
+                                 hypen="", amplifier.weight=0.8, n.before=5, n.after=2,
+                                 adversative.weight=0.25, neutral.nonverb.like = FALSE, 
+                                 missing_value = 0)
   
   socal_google <- sentiment(get_sentences_obj, 
                             polarity_dt=lexicon::hash_sentiment_socal_google, 
@@ -84,8 +84,8 @@ get_sentimentr_values <- function(sentences_vector) {
                             missing_value = NULL)
   
   sentimentr_df <- data.frame('text_clean' = sentences_vector,
-                              'was_averaged' = restoreOldSentences(jockersrinker)$flag,
-                              'sentimentr_jockersrinker' = restoreOldSentences(jockersrinker)$sentiment_avg,
+                              'was_averaged' = restoreOldSentences(jockers_rinker)$flag,
+                              'sentimentr_jockers_rinker' = restoreOldSentences(jockers_rinker)$sentiment_avg,
                               'sentimentr_jockers' = restoreOldSentences(jockers)$sentiment_avg,
                               'sentimentr_huliu' = restoreOldSentences(huliu)$sentiment_avg,
                               'sentimentr_nrc' = restoreOldSentences(nrc)$sentiment_avg,
